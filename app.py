@@ -12,10 +12,9 @@ import base64
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from openpyxl.drawing.image import Image as OpenpyxlImage
 from openpyxl.cell.rich_text import TextBlock, CellRichText
 from openpyxl.cell.text import InlineFont
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from reportlab.lib.pagesizes import letter
@@ -29,6 +28,8 @@ from supabase import create_client, Client
 # ---------------------------------------------------------
 st.set_page_config(page_title="Extractor y Calculadora TUVACOL S.A.", page_icon="📦", layout="wide")
 
+st.markdown("""<html lang="es" class="notranslate" translate="no"><head><meta name="google" content="notranslate" /></head></html>""", unsafe_allow_html=True)
+
 # ---------------------------------------------------------
 # Parámetros y Constantes
 # ---------------------------------------------------------
@@ -41,14 +42,14 @@ LOGO_PATH = "logo.png" if os.path.exists("logo.png") else ("download.png" if os.
 
 # --- Logging ---
 LOG_FILENAME = "log_ejecucion.txt"
-logging.basicConfig(filename=LOG_FILENAME, level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", encoding="utf-8")
+logging.basicConfig(filename=LOG_FILENAME, level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S", encoding="utf-8")
 
 def registrar_log(mensaje, tipo="INFO"):
     if tipo == "INFO": logging.info(mensaje)
     elif tipo == "WARNING": logging.warning(mensaje)
     elif tipo == "ERROR": logging.error(mensaje)
 
-# --- Supabase ---
+# --- Conexión Supabase ---
 @st.cache_resource
 def init_supabase():
     url = st.secrets["supabase"]["url"]
@@ -59,22 +60,44 @@ supabase = init_supabase()
 
 if "autenticado" not in st.session_state: st.session_state.autenticado = False
 
-# --- Capa Clean Core de Datos (Simulador SAP) ---
-def get_product_data_from_source(codigo_input, df_bd):
-    env_mode = st.session_state.get("env_mode", "DEV (Google)")
-    if env_mode == "PROD (SAP)":
-        registrar_log(f"[SAP BTP ODATA MOCK] Consultando material: {codigo_input}", "INFO")
-        if df_bd is not None:
-            match = df_bd[(df_bd['Codigo'].astype(str).str.contains(codigo_input, case=False, na=False)) | (df_bd['Descripcion'].astype(str).str.contains(codigo_input, case=False, na=False))]
-            if not match.empty:
-                item_sap = match.iloc[0].copy()
-                item_sap['Descripcion'] = f"[SAP S/4HANA] {item_sap['Descripcion']}"
-                return item_sap
-        return pd.Series({"Codigo": codigo_input.strip().upper(), "Descripcion": f"[SAP S/4HANA] MATERIAL {codigo_input}", "Peso_KG": 0.0})
-    else:
-        if df_bd is not None:
-            match = df_bd[(df_bd['Codigo'].astype(str).str.contains(codigo_input, case=False, na=False)) | (df_bd['Descripcion'].astype(str).str.contains(codigo_input, case=False, na=False))]
-            if not match.empty: return match.iloc[0]
+# ---------------------------------------------------------
+# Conexión Inteligente Google Drive (Híbrida: Local/Nube)
+# ---------------------------------------------------------
+def get_google_creds():
+    scope = ["https://www.googleapis.com/auth/drive"]
+    if "google" in st.secrets:
+        return service_account.Credentials.from_service_account_info(dict(st.secrets["google"]), scopes=scope)
+    elif os.path.exists('credentials.json'):
+        return service_account.Credentials.from_service_account_file('credentials.json', scopes=scope)
+    return None
+
+def descargar_pdf_desde_drive(folder_id, numero_entrega):
+    try:
+        creds = get_google_creds()
+        if not creds:
+            registrar_log("No se pudo obtener credenciales de Google", "ERROR")
+            return None
+            
+        service = build('drive', 'v3', credentials=creds)
+        query = f"'{folder_id}' in parents and mimeType='application/pdf' and name contains '{numero_entrega}' and trashed=false"
+        results = service.files().list(q=query, pageSize=1, fields="files(id, name)").execute()
+        files = results.get('files', [])
+
+        if not files:
+            registrar_log(f"No se encontró PDF para entrega: {numero_entrega}", "WARNING")
+            return None
+
+        file_id = files[0]['id']
+        request = service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+        fh.seek(0)
+        return fh
+    except Exception as e:
+        registrar_log(f"Error Drive: {e}", "ERROR")
         return None
 
 # --- Capa de Abstracción de Entregas ---
