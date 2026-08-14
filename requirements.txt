@@ -1,0 +1,10 @@
+streamlit
+pandas
+pypdf
+pdfplumber
+requests
+openpyxl
+reportlab
+supabase
+oauth2client
+google-api-python-client
