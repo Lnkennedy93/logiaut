@@ -16,6 +16,7 @@ from openpyxl.drawing.image import Image as OpenpyxlImage
 from openpyxl.cell.rich_text import TextBlock, CellRichText
 from openpyxl.cell.text import InlineFont
 from google.oauth2 import service_account
+from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from reportlab.lib.pagesizes import letter
@@ -81,10 +82,50 @@ def get_google_creds():
             creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
         return service_account.Credentials.from_service_account_info(creds_dict, scopes=scope)
     elif os.path.exists('credentials.json'):
-        return service_account.Credentials.from_service_account_file('credentials.json', scopes=scope)
+        return ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
     return None
-def descargar_pdf_desde_drive(folder_id, numero_entrega):
 
+def descargar_pdf_desde_drive(folder_id, numero_entrega):
+    try:
+        creds = get_google_creds()
+        if not creds:
+            registrar_log("No se encontraron credenciales de Google Drive.", "ERROR")
+            return None
+            
+        service = build('drive', 'v3', credentials=creds)
+
+        # Búsqueda global optimizada para carpetas compartidas
+        query = f"mimeType='application/pdf' and name contains '{numero_entrega}' and trashed=false"
+        results = service.files().list(
+            q=query, 
+            pageSize=1, 
+            fields="files(id, name)",
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True
+        ).execute()
+        files = results.get('files', [])
+
+        if not files:
+            registrar_log(f"No se encontró PDF en Drive para la entrega: {numero_entrega}", "WARNING")
+            return None
+
+        file_id = files[0]['id']
+        file_name = files[0]['name']
+
+        request = service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+
+        fh.seek(0)
+        registrar_log(f"PDF descargado exitosamente desde Drive: {file_name}")
+        return fh
+
+    except Exception as e:
+        registrar_log(f"Error al descargar PDF de Drive para {numero_entrega}: {e}", "ERROR")
+        return None
 
 # ---------------------------------------------------------
 # Conexión a Supabase (Autenticación y Licencias)
