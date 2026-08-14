@@ -16,7 +16,6 @@ from openpyxl.drawing.image import Image as OpenpyxlImage
 from openpyxl.cell.rich_text import TextBlock, CellRichText
 from openpyxl.cell.text import InlineFont
 from google.oauth2 import service_account
-from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from reportlab.lib.pagesizes import letter
@@ -82,14 +81,14 @@ def get_google_creds():
             creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
         return service_account.Credentials.from_service_account_info(creds_dict, scopes=scope)
     elif os.path.exists('credentials.json'):
-        return ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+        return service_account.Credentials.from_service_account_file('credentials.json', scopes=scope)
     return None
 
 def descargar_pdf_desde_drive(folder_id, numero_entrega):
     try:
         creds = get_google_creds()
         if not creds:
-            registrar_log("No se encontraron credenciales de Google Drive en st.secrets ni archivo local.", "ERROR")
+            registrar_log("No se encontraron credenciales de Google Drive en st.secrets.", "ERROR")
             return None
             
         service = build('drive', 'v3', credentials=creds)
@@ -1249,55 +1248,6 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     )
     else:
         st.warning("⚠️ No se encontraron productos válidos en los documentos seleccionados.")
-
-# ---------------------------------------------------------
-# Autenticación y Carga de Base de Datos
-# ---------------------------------------------------------
-@st.cache_resource
-def init_supabase():
-    url = st.secrets["supabase"]["url"]
-    key = st.secrets["supabase"]["key"]
-    return create_client(url, key)
-
-supabase: Client = init_supabase()
-
-if "autenticado" not in st.session_state: st.session_state.autenticado = False
-if "usuario_actual" not in st.session_state: st.session_state.usuario_actual = None
-if "empresa_actual" not in st.session_state: st.session_state.empresa_actual = None
-
-def validar_en_supabase(correo, password):
-    try:
-        response = supabase.table("usuarios_licencias").select("*").eq("correo", correo.strip()).eq("password", password.strip()).execute()
-        data = response.data
-        if data and len(data) > 0 and data[0].get("activo") == True:
-            return data[0]
-        return None
-    except Exception as e:
-        st.error(f"Error de conexión con la base de datos: {e}")
-        return None
-
-def pantalla_login():
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.subheader("🚀 Optimiza tu Logistica - LogiAut")
-        with st.form("form_login"):
-            correo = st.text_input("Correo electrónico")
-            password = st.text_input("Contraseña", type="password")
-            if st.form_submit_button("Iniciar Sesión", use_container_width=True):
-                user_data = validar_en_supabase(correo, password)
-                if user_data:
-                    st.session_state.autenticado = True
-                    st.session_state.usuario_actual = user_data["correo"]
-                    st.session_state.empresa_actual = user_data["empresa"]
-                    st.success("¡Licencia verificada con éxito!")
-                    st.rerun()
-                else:
-                    st.error("❌ Credenciales incorrectas o licencia inactiva.")
-
-if not st.session_state.autenticado:
-    pantalla_login()
-    st.stop()
 
 # ---------------------------------------------------------
 # Interfaz Principal y Pestañas
