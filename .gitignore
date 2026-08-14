@@ -1,0 +1,8 @@
+.venv/
+credentials.json
+secrets.toml
+*.pdf
+*.xlsx
+__pycache__/
+*.log
+.DS_Store
