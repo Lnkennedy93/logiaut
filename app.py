@@ -1351,4 +1351,4 @@ with tab_rutas:
         if raw_obs:
             structured = parse_observation_data(raw_obs)
             muni, reg = procesar_ubicacion(structured["Dirección"])
-            st.info(f"Dirección: {structured['Dirección']} | Región: {reg}")
+            st.info(f"Dirección: {structured['Dirección']} | Región: {reg}") 
