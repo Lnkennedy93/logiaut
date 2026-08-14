@@ -94,23 +94,33 @@ def descargar_pdf_desde_drive(folder_id, numero_entrega):
             
         service = build('drive', 'v3', credentials=creds)
 
-        # Búsqueda global optimizada para carpetas compartidas
-        query = f"mimeType='application/pdf' and name contains '{numero_entrega}' and trashed=false"
+        # Consulta robusta buscando tanto dentro del ID de la carpeta como de forma global por si acaso
+        query = f"('{folder_id}' in parents or name contains '{numero_entrega}') and mimeType='application/pdf' and trashed=false"
         results = service.files().list(
             q=query, 
-            pageSize=1, 
+            pageSize=5, 
             fields="files(id, name)",
             supportsAllDrives=True,
             includeItemsFromAllDrives=True
         ).execute()
         files = results.get('files', [])
 
-        if not files:
+        # Filtramos para asegurar que coincida con el número de entrega exacto
+        matched_file = None
+        for f in files:
+            if str(numero_entrega) in f['name']:
+                matched_file = f
+                break
+
+        if not matched_file and files:
+            matched_file = files[0] # Tomamos el primero como respaldo si contiene coincidencia parcial
+
+        if not matched_file:
             registrar_log(f"No se encontró PDF en Drive para la entrega: {numero_entrega}", "WARNING")
             return None
 
-        file_id = files[0]['id']
-        file_name = files[0]['name']
+        file_id = matched_file['id']
+        file_name = matched_file['name']
 
         request = service.files().get_media(fileId=file_id)
         fh = io.BytesIO()
@@ -891,7 +901,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     return buffer.getvalue()
 
 # ---------------------------------------------------------
-# Extractor Inteligente de Materiales (Actualizado con pdfplumber)
+# Extractor Inteligente de Materiales
 # ---------------------------------------------------------
 def extraer_tabla_materiales(pdf_source, nombre_doc="Desconocido"):
     texto_completo = ""
