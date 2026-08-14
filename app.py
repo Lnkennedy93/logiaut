@@ -12,9 +12,11 @@ import base64
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.drawing.image import Image as OpenpyxlImage
 from openpyxl.cell.rich_text import TextBlock, CellRichText
 from openpyxl.cell.text import InlineFont
 from google.oauth2 import service_account
+from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from reportlab.lib.pagesizes import letter
@@ -28,7 +30,15 @@ from supabase import create_client, Client
 # ---------------------------------------------------------
 st.set_page_config(page_title="Extractor y Calculadora TUVACOL S.A.", page_icon="📦", layout="wide")
 
-st.markdown("""<html lang="es" class="notranslate" translate="no"><head><meta name="google" content="notranslate" /></head></html>""", unsafe_allow_html=True)
+st.markdown(
+    """
+    <html lang="es" class="notranslate" translate="no">
+    <head>
+        <meta name="google" content="notranslate" />
+    </head>
+    """,
+    unsafe_allow_html=True
+)
 
 # ---------------------------------------------------------
 # Parámetros y Constantes
@@ -41,120 +51,6 @@ MASTER_CSV_PATH = "registro_entregas.csv"
 LOGO_PATH = "logo.png" if os.path.exists("logo.png") else ("download.png" if os.path.exists("download.png") else None)
 
 # --- Logging ---
-LOG_FILENAME = "log_ejecucion.txt"
-logging.basicConfig(filename=LOG_FILENAME, level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S", encoding="utf-8")
-
-def registrar_log(mensaje, tipo="INFO"):
-    if tipo == "INFO": logging.info(mensaje)
-    elif tipo == "WARNING": logging.warning(mensaje)
-    elif tipo == "ERROR": logging.error(mensaje)
-
-# --- Conexión Supabase ---
-@st.cache_resource
-def init_supabase():
-    url = st.secrets["supabase"]["url"]
-    key = st.secrets["supabase"]["key"]
-    return create_client(url, key)
-
-supabase = init_supabase()
-
-if "autenticado" not in st.session_state: st.session_state.autenticado = False
-
-# ---------------------------------------------------------
-# Conexión Inteligente Google Drive (Híbrida: Local/Nube)
-# ---------------------------------------------------------
-def get_google_creds():
-    scope = ["https://www.googleapis.com/auth/drive"]
-    if "google" in st.secrets:
-        return service_account.Credentials.from_service_account_info(dict(st.secrets["google"]), scopes=scope)
-    elif os.path.exists('credentials.json'):
-        return service_account.Credentials.from_service_account_file('credentials.json', scopes=scope)
-    return None
-
-def descargar_pdf_desde_drive(folder_id, numero_entrega):
-    try:
-        creds = get_google_creds()
-        if not creds:
-            registrar_log("No se pudo obtener credenciales de Google", "ERROR")
-            return None
-            
-        service = build('drive', 'v3', credentials=creds)
-        query = f"'{folder_id}' in parents and mimeType='application/pdf' and name contains '{numero_entrega}' and trashed=false"
-        results = service.files().list(q=query, pageSize=1, fields="files(id, name)").execute()
-        files = results.get('files', [])
-
-        if not files:
-            registrar_log(f"No se encontró PDF para entrega: {numero_entrega}", "WARNING")
-            return None
-
-        file_id = files[0]['id']
-        request = service.files().get_media(fileId=file_id)
-        fh = io.BytesIO()
-        downloader = MediaIoBaseDownload(fh, request)
-        done = False
-        while not done:
-            status, done = downloader.next_chunk()
-        fh.seek(0)
-        return fh
-    except Exception as e:
-        registrar_log(f"Error Drive: {e}", "ERROR")
-        return None
-
-# --- Capa de Abstracción de Entregas ---
-def obtener_datos_entrega_source(num_entrega):
-    env_mode = st.session_state.get("env_mode", "DEV (Google)")
-    if env_mode == "PROD (SAP)":
-        registrar_log(f"[SAP BTP ODATA MOCK] Consumiendo API_OUTBOUND_DELIVERY_SRV para entrega: {num_entrega}", "INFO")
-        return [
-            {"Entrega": f"Entrega_{num_entrega}", "Código": "45230050", "Descripción": "[SAP S/4HANA] TUBERIA PVC", "Cantidad": 10.0},
-            {"Entrega": f"Entrega_{num_entrega}", "Código": "45210080", "Descripción": "[SAP S/4HANA] ACCESORIO PVC", "Cantidad": 5.0}
-        ]
-    else:
-        pdf_buffer = descargar_pdf_desde_drive(DRIVE_FOLDER_ID, num_entrega)
-        if pdf_buffer: return extraer_tabla_materiales(pdf_buffer, nombre_doc=f"Entrega_{num_entrega}")
-        return []
-
-# --- Funciones de Soporte (Copia tus funciones actuales de Drive, PDF y Excel aquí) ---
-# [MANTÉN TUS FUNCIONES: descargar_pdf_desde_drive, extraer_tabla_materiales, generar_excel_bytes, generar_pdf_bytes, etc.]
-
-# ---------------------------------------------------------
-# Interfaz Principal
-# ---------------------------------------------------------
-# (Mantén toda tu interfaz de Streamlit, incluyendo el login y la lógica de render_procesamiento_despacho)
-
-# ---------------------------------------------------------
-# Configuración inicial de Streamlit
-# ---------------------------------------------------------
-st.set_page_config(
-    page_title="Extractor y Calculadora TUVACOL S.A.", 
-    page_icon="📦", 
-    layout="wide"
-)
-
-st.markdown(
-    """
-    <html lang="es" class="notranslate" translate="no">
-    <head>
-        <meta name="google" content="notranslate" />
-    </head>
-    """,
-    unsafe_allow_html=True
-)
-
-# ---------------------------------------------------------
-# Parámetros y Constantes Nube
-# ---------------------------------------------------------
-GOOGLE_SHEET_XLSX_URL = "https://docs.google.com/spreadsheets/d/1aTlmA6JBldTX3zN-djDjWA5HEAExTPcdNhJsPJL9Kgo/export?format=xlsx"
-DRIVE_FOLDER_ID = "1Amwy8_uQgo6X0VS2DXH028Ep80BMi4rP"
-CEDULA_DEV_CORRECTA = "1073513861"
-BD_LOCAL_PATH = "BD_Pesos.xlsx"
-MASTER_CSV_PATH = "registro_entregas.csv"
-
-LOGO_PATH = "logo.png" if os.path.exists("logo.png") else ("download.png" if os.path.exists("download.png") else None)
-
-# ---------------------------------------------------------
-# Configuración del Sistema de Logging
-# ---------------------------------------------------------
 LOG_FILENAME = "log_ejecucion.txt"
 
 logging.basicConfig(
@@ -174,6 +70,55 @@ def registrar_log(mensaje, tipo="INFO"):
         logging.error(mensaje)
 
 registrar_log("--- Sesión iniciada ---")
+
+# ---------------------------------------------------------
+# Conexión Inteligente Google Drive (Híbrida: Local/Nube)
+# ---------------------------------------------------------
+def get_google_creds():
+    scope = ["https://www.googleapis.com/auth/drive"]
+    if "google" in st.secrets:
+        creds_dict = dict(st.secrets["google"])
+        if "private_key" in creds_dict:
+            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+        return service_account.Credentials.from_service_account_info(creds_dict, scopes=scope)
+    elif os.path.exists('credentials.json'):
+        return ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+    return None
+
+def descargar_pdf_desde_drive(folder_id, numero_entrega):
+    try:
+        creds = get_google_creds()
+        if not creds:
+            registrar_log("No se encontraron credenciales de Google Drive en st.secrets ni archivo local.", "ERROR")
+            return None
+            
+        service = build('drive', 'v3', credentials=creds)
+
+        query = f"'{folder_id}' in parents and mimeType='application/pdf' and name contains '{numero_entrega}' and trashed=false"
+        results = service.files().list(q=query, pageSize=1, fields="files(id, name)").execute()
+        files = results.get('files', [])
+
+        if not files:
+            registrar_log(f"No se encontró PDF en Drive para la entrega: {numero_entrega}", "WARNING")
+            return None
+
+        file_id = files[0]['id']
+        file_name = files[0]['name']
+
+        request = service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+
+        fh.seek(0)
+        registrar_log(f"PDF descargado exitosamente desde Drive: {file_name}")
+        return fh
+
+    except Exception as e:
+        registrar_log(f"Error al descargar PDF de Drive para {numero_entrega}: {e}", "ERROR")
+        return None
 
 # ---------------------------------------------------------
 # Conexión a Supabase (Autenticación y Licencias)
@@ -252,31 +197,21 @@ if not st.session_state.autenticado:
 # Capa de Datos Inteligente (Patrón Clean Core - SAP BTP / Google)
 # ---------------------------------------------------------
 def get_product_data_from_source(codigo_input, df_bd):
-    """
-    Capa de abstracción de datos:
-    - DEV: Consulta Google Sheets o Base de Datos Local.
-    - PROD (SAP): Simula una respuesta OData de SAP S/4HANA Cloud (API_PRODUCT_SRV)
-      pero utilizando los datos reales de tu base de datos para mantener la consistencia.
-    """
     env_mode = st.session_state.get("env_mode", "DEV (Google)")
     
     if env_mode == "PROD (SAP)":
         registrar_log(f"[SAP BTP ODATA MOCK] Consumiendo API_PRODUCT_SRV para material: {codigo_input}", "INFO")
         
-        # Buscamos en la base de datos real de TUVACOL para obtener el peso y descripción correctos
         if df_bd is not None:
             match = df_bd[
                 (df_bd['Codigo'].astype(str).str.contains(codigo_input, case=False, na=False)) |
                 (df_bd['Descripcion'].astype(str).str.contains(codigo_input, case=False, na=False))
             ]
             if not match.empty:
-                # Tomamos el registro real de la BD
                 item_sap = match.iloc[0].copy()
-                # Simulamos el prefijo o metadato que añadiría el conector de SAP BTP
                 item_sap['Descripcion'] = f"[SAP S/4HANA] {item_sap['Descripcion']}"
                 return item_sap
                 
-        # Si no se encuentra en la BD local, devuelve un respaldo
         return pd.Series({
             "Codigo": codigo_input.strip().upper(), 
             "Descripcion": f"[SAP S/4HANA] MATERIAL NO ENCONTRADO EN MAESTRO ({codigo_input})", 
@@ -284,7 +219,6 @@ def get_product_data_from_source(codigo_input, df_bd):
         })
             
     else:
-        # Modo Operativo Actual (Google Sheets / Base de Datos Local)
         if df_bd is not None:
             match = df_bd[
                 (df_bd['Codigo'].astype(str).str.contains(codigo_input, case=False, na=False)) |
@@ -293,6 +227,7 @@ def get_product_data_from_source(codigo_input, df_bd):
             if not match.empty:
                 return match.iloc[0]
         return None
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_google_sheet_database(custom_url=None):
     target_url = custom_url or GOOGLE_SHEET_XLSX_URL
@@ -411,45 +346,6 @@ def cargar_bd_local(ruta_archivo):
         return None
     except Exception as e:
         registrar_log(f"Error al leer BD local: {e}", "ERROR")
-        return None
-
-# ---------------------------------------------------------
-# Conexión Google Drive
-# ---------------------------------------------------------
-def descargar_pdf_desde_drive(folder_id, numero_entrega):
-    try:
-        if not os.path.exists('credentials.json'):
-            registrar_log("No se encontró el archivo credentials.json para Google Drive API", "ERROR")
-            return None
-            
-        scope = ["https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
-        service = build('drive', 'v3', credentials=creds)
-
-        query = f"'{folder_id}' in parents and mimeType='application/pdf' and name contains '{numero_entrega}' and trashed=false"
-        results = service.files().list(q=query, pageSize=1, fields="files(id, name)").execute()
-        files = results.get('files', [])
-
-        if not files:
-            registrar_log(f"No se encontró PDF en Drive para la entrega: {numero_entrega}", "WARNING")
-            return None
-
-        file_id = files[0]['id']
-        file_name = files[0]['name']
-
-        request = service.files().get_media(fileId=file_id)
-        fh = io.BytesIO()
-        downloader = MediaIoBaseDownload(fh, request)
-        done = False
-        while not done:
-            status, done = downloader.next_chunk()
-
-        fh.seek(0)
-        registrar_log(f"PDF descargado exitosamente desde Drive: {file_name}")
-        return fh
-
-    except Exception as e:
-        registrar_log(f"Error al descargar PDF de Drive para {numero_entrega}: {e}", "ERROR")
         return None
 
 # ---------------------------------------------------------
@@ -1176,8 +1072,21 @@ def generar_link_maps(direccion):
     return "https://www.google.com/maps/search/?api=1&query=" + direccion.strip().replace(" ", "+")
 
 # ---------------------------------------------------------
-# Función Auxiliar para Renderizar la Tabla y Formularios de Despacho (Soporte DEV/PROD SAP)
+# Capa de Abstracción de Entregas y Renderizado
 # ---------------------------------------------------------
+def obtener_datos_entrega_source(num_entrega):
+    env_mode = st.session_state.get("env_mode", "DEV (Google)")
+    if env_mode == "PROD (SAP)":
+        registrar_log(f"[SAP BTP ODATA MOCK] Consumiendo API_OUTBOUND_DELIVERY_SRV para entrega: {num_entrega}", "INFO")
+        return [
+            {"Entrega": f"Entrega_{num_entrega}", "Código": "45230050", "Descripción": "[SAP S/4HANA] TUBERIA PVC", "Cantidad": 10.0},
+            {"Entrega": f"Entrega_{num_entrega}", "Código": "45210080", "Descripción": "[SAP S/4HANA] ACCESORIO PVC", "Cantidad": 5.0}
+        ]
+    else:
+        pdf_buffer = descargar_pdf_desde_drive(DRIVE_FOLDER_ID, num_entrega)
+        if pdf_buffer: return extraer_tabla_materiales(pdf_buffer, nombre_doc=f"Entrega_{num_entrega}")
+        return []
+
 def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=True):
     if not lista_fuentes:
         return
@@ -1203,8 +1112,6 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
         pesos_u = []
         pesos_t = []
 
-        # AQUÍ APLICAMOS LA CAPA CLEAN CORE: 
-        # Cada ítem extraído del PDF consulta la fuente inteligente (DEV o PROD SAP)
         for _, row in df_resumen.iterrows():
             codigo_item = str(row['Código']).strip()
             item_match = get_product_data_from_source(codigo_item, df_bd)
@@ -1265,8 +1172,6 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
 
                 with st.form(key=f"form_despacho_{tab_key}"):
                     st.markdown("### 📄 Datos del Destinatario")
-                    st.caption("Información del destinatario y punto de entrega para el formato oficial.")
-
                     col_dst1, col_dst2 = st.columns(2)
                     with col_dst1:
                         dest_name_input = st.text_input("Nombre del Destinatario:", value=st.session_state[f"saved_data_{tab_key}"]["dest_name"])
@@ -1275,22 +1180,20 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
 
                     st.markdown("---")
                     st.markdown("### 🚛 Datos del Conductor y Vehiculo")
-                    st.caption("Información logísticamente requerida en las firmas de recepción.")
-
                     col_drv1, col_drv2, col_drv3 = st.columns(3)
                     with col_drv1:
-                        d_nombre_input = st.text_input("Nombre Completo Conductor:", value=st.session_state[f"saved_data_{tab_key}"]["d_nombre"], placeholder="Ej: Carlos Pérez")
-                        d_placa_input = st.text_input("Placa Vehículo:", value=st.session_state[f"saved_data_{tab_key}"]["d_placa"], placeholder="Ej: SXX-123")
+                        d_nombre_input = st.text_input("Nombre Completo Conductor:", value=st.session_state[f"saved_data_{tab_key}"]["d_nombre"])
+                        d_placa_input = st.text_input("Placa Vehículo:", value=st.session_state[f"saved_data_{tab_key}"]["d_placa"])
                     with col_drv2:
-                        d_cedula_input = st.text_input("Cédula No.:", value=st.session_state[f"saved_data_{tab_key}"]["d_cedula"], placeholder="Ej: 80.123.456")
-                        d_marca_input = st.text_input("Marca / Modelo / Color:", value=st.session_state[f"saved_data_{tab_key}"]["d_marca"], placeholder="Ej: Chevrolet / 2022 / Blanco")
+                        d_cedula_input = st.text_input("Cédula No.:", value=st.session_state[f"saved_data_{tab_key}"]["d_cedula"])
+                        d_marca_input = st.text_input("Marca / Modelo / Color:", value=st.session_state[f"saved_data_{tab_key}"]["d_marca"])
                     with col_drv3:
-                        d_celular_input = st.text_input("Celular / Teléfono:", value=st.session_state[f"saved_data_{tab_key}"]["d_celular"], placeholder="Ej: 310 123 4567")
-                        d_transp_input = st.text_input("Empresa Transportadora:", value=st.session_state[f"saved_data_{tab_key}"]["d_transp"], placeholder="Ej: Transportes Tuvacol / TCC")
+                        d_celular_input = st.text_input("Celular / Teléfono:", value=st.session_state[f"saved_data_{tab_key}"]["d_celular"])
+                        d_transp_input = st.text_input("Empresa Transportadora:", value=st.session_state[f"saved_data_{tab_key}"]["d_transp"])
 
                     st.markdown("---")
                     st.markdown("### ✍️ Información de Elaboración")
-                    elab_nombre_input = st.text_input("Elaborado por (Nombre y Cargo):", value=st.session_state[f"saved_data_{tab_key}"]["elab_nombre"], placeholder="Ej: Juan Pérez - Logística")
+                    elab_nombre_input = st.text_input("Elaborado por (Nombre y Cargo):", value=st.session_state[f"saved_data_{tab_key}"]["elab_nombre"])
 
                     submitted = st.form_submit_button(label="💾 Guardar Cambios")
 
@@ -1311,12 +1214,8 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                 saved = st.session_state[f"saved_data_{tab_key}"]
                 dest_info = {"nombre": saved["dest_name"], "direccion": saved["dest_address"]}
                 driver_info = {
-                    "nombre": saved["d_nombre"],
-                    "cedula": saved["d_cedula"],
-                    "celular": saved["d_celular"],
-                    "placa": saved["d_placa"],
-                    "marca": saved["d_marca"],
-                    "transportadora": saved["d_transp"]
+                    "nombre": saved["d_nombre"], "cedula": saved["d_cedula"], "celular": saved["d_celular"],
+                    "placa": saved["d_placa"], "marca": saved["d_marca"], "transportadora": saved["d_transp"]
                 }
                 elaborado_info = {"nombre": saved["elab_nombre"]}
 
@@ -1336,35 +1235,78 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     st.download_button(
                         label="📊 Descargar Formato Oficial Excel (.xlsx)",
                         data=excel_bytes,
-                        file_name=f"Relacion_Envio_TUVACOL_GID_F_010_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                        file_name=f"Relacion_Envio_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                        key=f"dl_excel_{tab_key}"
+                        use_container_width=True, key=f"dl_excel_{tab_key}"
                     )
-
                 with col_exp2:
                     st.download_button(
                         label="🖨️ Descargar Formato Oficial PDF (Imprimible)",
                         data=pdf_bytes,
-                        file_name=f"Relacion_Envio_TUVACOL_GID_F_010_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                        file_name=f"Relacion_Envio_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
                         mime="application/pdf",
-                        use_container_width=True,
-                        key=f"dl_pdf_{tab_key}"
+                        use_container_width=True, key=f"dl_pdf_{tab_key}"
                     )
-
-            registrar_log(f"Consolidado global ({total_docs} docs) -> Total KG: {total_kg:.2f} | Total Ton: {total_ton:.3f}")
     else:
         st.warning("⚠️ No se encontraron productos válidos en los documentos seleccionados.")
+
 # ---------------------------------------------------------
-# Interfaz Principal y Control de Pestañas
+# Autenticación y Carga de Base de Datos
+# ---------------------------------------------------------
+@st.cache_resource
+def init_supabase():
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["key"]
+    return create_client(url, key)
+
+supabase: Client = init_supabase()
+
+if "autenticado" not in st.session_state: st.session_state.autenticado = False
+if "usuario_actual" not in st.session_state: st.session_state.usuario_actual = None
+if "empresa_actual" not in st.session_state: st.session_state.empresa_actual = None
+
+def validar_en_supabase(correo, password):
+    try:
+        response = supabase.table("usuarios_licencias").select("*").eq("correo", correo.strip()).eq("password", password.strip()).execute()
+        data = response.data
+        if data and len(data) > 0 and data[0].get("activo") == True:
+            return data[0]
+        return None
+    except Exception as e:
+        st.error(f"Error de conexión con la base de datos: {e}")
+        return None
+
+def pantalla_login():
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.subheader("🚀 Optimiza tu Logistica - LogiAut")
+        with st.form("form_login"):
+            correo = st.text_input("Correo electrónico")
+            password = st.text_input("Contraseña", type="password")
+            if st.form_submit_button("Iniciar Sesión", use_container_width=True):
+                user_data = validar_en_supabase(correo, password)
+                if user_data:
+                    st.session_state.autenticado = True
+                    st.session_state.usuario_actual = user_data["correo"]
+                    st.session_state.empresa_actual = user_data["empresa"]
+                    st.success("¡Licencia verificada con éxito!")
+                    st.rerun()
+                else:
+                    st.error("❌ Credenciales incorrectas o licencia inactiva.")
+
+if not st.session_state.autenticado:
+    pantalla_login()
+    st.stop()
+
+# ---------------------------------------------------------
+# Interfaz Principal y Pestañas
 # ---------------------------------------------------------
 st.sidebar.markdown(f"👤 **Usuario:** {st.session_state.usuario_actual}")
 st.sidebar.markdown(f"🏢 **Cliente:** {st.session_state.empresa_actual}")
 
 if st.sidebar.button("Cerrar Sesión", use_container_width=True):
     st.session_state.autenticado = False
-    st.session_state.usuario_actual = None
-    st.session_state.empresa_actual = None
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -1377,12 +1319,7 @@ if modo_app == "Modo Destroller":
     if cedula_input.strip() == CEDULA_DEV_CORRECTA:
         st.sidebar.success("🔓 Acceso Destroller Autorizado")
         es_dev_autenticado = True
-    elif cedula_input.strip() != "":
-        st.sidebar.error("❌ Contraseña Incorrecta.")
 
-st.sidebar.header("⚙️ Base de Datos de Pesos")
-
-# Selector de entorno para escalabilidad futura (Clean Core / SAP BTP)
 if es_dev_autenticado:
     env_mode = st.sidebar.radio("Modo Conexión de Datos:", ["DEV (Google)", "PROD (SAP)"], key="env_mode")
 
@@ -1394,9 +1331,7 @@ if st.sidebar.button("🔄 Sincronizar Google Sheets Oficial"):
     st.rerun()
 
 st.title("📦 Calculadora de Pesos para Despacho de Materiales")
-st.markdown("Herramienta para el cálculo automático de pesos de remisiones y productos con auditoría de ejecución.")
 
-# Construcción Dinámica de Pestañas según Modo Destroller
 if es_dev_autenticado:
     tab1, tab2, tab3, tab_rutas, tab_extractor, tab_maestro, tab4 = st.tabs([
         "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío",
@@ -1408,289 +1343,54 @@ else:
         "Gestión de Rutas"
     ])
 
-# --- PESTAÑA 1: BÚSQUEDA AUTOMÁTICA ---
 with tab1:
     st.subheader("Consulta Dinámica de Producto")
-    col1, col2 = st.columns([3, 1])
-
-    with col1:
-        codigo_input = st.text_input("Ingrese Código o Descripción del Artículo", value="", placeholder="Escriba aquí (ej. 108001051)...")
-    with col2:
-        cant_input = st.number_input("Cantidad a despachar", min_value=1.0, value=1.0, step=1.0)
-
+    codigo_input = st.text_input("Ingrese Código o Descripción del Artículo", value="", placeholder="Ej. 108001051")
+    cant_input = st.number_input("Cantidad a despachar", min_value=1.0, value=1.0, step=1.0)
     if codigo_input.strip() != "":
-        # Usando la nueva capa de datos Clean Core (preparada para SAP / Google)
         item = get_product_data_from_source(codigo_input, df_bd)
-
         if item is not None:
-            st.markdown("### 🎯 Resultado Encontrado")
-            peso_raw = str(item['Peso_KG']).replace(',', '.')
-            try:
-                peso_unit = float(peso_raw)
-            except ValueError:
-                peso_unit = 0.0
-
-            peso_total = peso_unit * cant_input
-
+            peso_unit = float(str(item.get('Peso_KG', 0.0)).replace(',', '.'))
             res_col1, res_col2, res_col3, res_col4 = st.columns(4)
             res_col1.metric("Código", str(item['Codigo']))
             res_col2.metric("Descripción", str(item['Descripcion']))
             res_col3.metric("Peso Unitario", f"{peso_unit:.2f} KG")
-            res_col4.metric("Peso Total Despacho", f"{peso_total:.2f} KG")
+            res_col4.metric("Peso Total", f"{peso_unit * cant_input:.2f} KG")
         else:
-            st.warning("⚠️ No se encontraron coincidencias en la Base de Datos.")
+            st.warning("⚠️ No se encontraron coincidencias.")
 
-# --- PESTAÑA 2: PROCESAMIENTO DE ENTREGAS (SOPORTE DEV / PROD SAP) ---
 with tab2:
-    st.subheader("Búsqueda y Cálculo por Número de Entrega (SAP OData / Google Drive)")
-    env_actual = st.session_state.get("env_mode", "DEV (Google)")
-    
-    if env_actual == "PROD (SAP)":
-        st.caption("⚡ [Modo SAP Activo] Consultando directamente la API de Entregas de Salida (API_OUTBOUND_DELIVERY_SRV).")
-    else:
-        st.caption("📁 [Modo DEV Activo] Consultando PDFs oficiales en repositorio Google Drive.")
-
-    num_entregas_input = st.text_input("Números de Entrega (separados por comas o espacios):", placeholder="Ej: 20005021, 3171", key="input_drive_search_tab2")
-
-    todos_los_items_capturados = []
+    st.subheader("Búsqueda y Cálculo por Número de Entrega")
+    num_entregas_input = st.text_input("Números de Entrega:", placeholder="Ej: 20005021, 3171")
+    todos_los_items = []
     encontrados = []
     no_encontrados = []
-
     if num_entregas_input.strip():
-        numeros = [n.strip() for n in re.split(r'[\s,]+', num_entregas_input) if n.strip()][:50]
-
-        for num in numeros:
-            items_entrega = obtener_datos_entrega_source(num)
-            
-            if items_entrega:
-                todos_los_items_capturados.extend(items_entrega)
+        for num in [n.strip() for n in re.split(r'[\s,]+', num_entregas_input) if n.strip()][:50]:
+            items = obtener_datos_entrega_source(num)
+            if items:
+                todos_los_items.extend(items)
                 encontrados.append(num)
             else:
                 no_encontrados.append(num)
+        if encontrados: st.success(f"✅ Procesados: {', '.join(encontrados)}")
+        if no_encontrados: st.error(f"❌ No encontrados: {', '.join(no_encontrados)}")
+    if todos_los_items:
+        render_procesamiento_despacho([(None, f"Entrega_{num}") for num in encontrados], "tab2", mostrar_exportacion=True)
 
-        if encontrados:
-            st.success(f"✅ Se procesaron exitosamente {len(encontrados)} entrega(s): {', '.join(encontrados)}")
-        if no_encontrados:
-            st.error(f"❌ No se pudieron recuperar datos para las entregas: {', '.join(no_encontrados)}")
-
-    if todos_los_items_capturados:
-        df_resumen = pd.DataFrame(todos_los_items_capturados)
-        
-        pesos_u = []
-        pesos_t = []
-        for _, row in df_resumen.iterrows():
-            codigo_item = str(row['Código']).strip()
-            item_match = get_product_data_from_source(codigo_item, df_bd)
-
-            if item_match is not None:
-                p_raw = str(item_match.get('Peso_KG', 0.0)).strip().replace(',', '.').replace(' ', '')
-                try:
-                    p_val = float(p_raw)
-                except ValueError:
-                    p_val = 0.0
-            else:
-                p_val = 0.0
-
-            cant_val = float(row['Cantidad'])
-            pesos_u.append(p_val)
-            pesos_t.append(round(p_val * cant_val, 2))
-
-        df_resumen["Peso Unit. (KG)"] = pesos_u
-        df_resumen["Peso Total (KG)"] = pesos_t
-        df_resumen["No."] = [str(i + 1) for i in range(len(df_resumen))]
-
-        columnas_orden = ["No.", "Entrega", "Código", "Descripción", "Cantidad", "Peso Unit. (KG)", "Peso Total (KG)"]
-        df_resumen = df_resumen[columnas_orden]
-
-        st.markdown(f"### 📋 Tabla Consolidada de Materiales")
-        st.dataframe(df_resumen, use_container_width=True)
-
-        total_kg = pd.to_numeric(df_resumen["Peso Total (KG)"], errors='coerce').sum()
-        total_docs = len(encontrados)
-
-        st.markdown("---")
-        st.markdown("### 📊 Gran Total Consolidado del Despacho")
-        
-        # Ajustado a 2 columnas para mostrar únicamente documentos y peso total en KG
-        m1, m2 = st.columns(2)
-        m1.metric("📄 Total Entregas Procesadas", f"{total_docs}")
-        m2.metric("📦 Peso Total Combinado (KG)", f"{total_kg:,.2f} KG")
-
-# --- PESTAÑA 3: RELACIÓN DE ENVÍO MANUAL ---
 with tab3:
     st.subheader("📤 Generador de Relación de Envio (Subir Archivos PDF)")
-    st.caption("Cargue directamente los archivos PDF desde su equipo para consolidar el despacho (Hasta 50 documentos).")
+    uploaded_files = st.file_uploader("Cargar PDFs", type=["pdf"], accept_multiple_files=True)
+    lista_fuentes = [(f, f"Entrega_{re.search(r'\d+', f.name).group(0)}") for f in uploaded_files] if uploaded_files else []
+    render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
 
-    def limpiar_tab3():
-        st.session_state["pdf_uploader_ver"] = st.session_state.get("pdf_uploader_ver", 0) + 1
-        if "saved_data_tab3" in st.session_state:
-            del st.session_state["saved_data_tab3"]
-
-    if st.button("🔄 Limpiar Todo / Iniciar Nueva Tarea", key="btn_limpiar_tab3", type="secondary"):
-        limpiar_tab3()
-        st.rerun()
-
-    if "pdf_uploader_ver" not in st.session_state:
-        st.session_state["pdf_uploader_ver"] = 0
-
-    uploader_key = f"uploader_manual_pdfs_tab3_{st.session_state['pdf_uploader_ver']}"
-    uploaded_files = st.file_uploader(
-        "Cargar PDFs de Entrega de Mercancía", 
-        type=["pdf"], 
-        accept_multiple_files=True,
-        key=uploader_key
-    )
-    
-    lista_fuentes_pdf_subidos = []
-    if uploaded_files:
-        if len(uploaded_files) > 50:
-            st.warning("⚠️ Seleccionó más de 50 archivos. Solo se procesarán los primeros 50.")
-            uploaded_files = uploaded_files[:50]
-        for file in uploaded_files:
-            num_ent = re.search(r'\d+', file.name)
-            tag_ent = num_ent.group(0) if num_ent else file.name
-            lista_fuentes_pdf_subidos.append((file, f"Entrega_{tag_ent}"))
-
-    render_procesamiento_despacho(lista_fuentes_pdf_subidos, "tab3", mostrar_exportacion=True)
-
-# --- PESTAÑA GESTIÓN DE RUTAS (Buscador Drive + Clasificador) ---
 with tab_rutas:
     st.subheader("Clasificador de Rutas")
-    st.markdown("Sube tu documento PDF o búscalo directamente por número de entrega en Google Drive.")
-
-    col_busq1, col_busq2 = st.columns(2)
-    with col_busq1:
-        drive_busqueda = st.text_input("🔍 Buscar por No. Entrega en Google Drive:", placeholder="Ej: 20006895", key="search_drive_rutas")
-    with col_busq2:
-        uploaded_file_ruta = st.file_uploader("O cargar PDF directamente", type="pdf", key="uploader_rutas_final")
-
-    pdf_fuente = None
-    if drive_busqueda.strip():
-        pdf_fuente = descargar_pdf_desde_drive(DRIVE_FOLDER_ID, drive_busqueda.strip())
-        if pdf_fuente: st.success(f"✅ Archivo encontrado en Google Drive para la entrega: {drive_busqueda}")
-        else: st.error("❌ No se halló el archivo en Google Drive.")
-    elif uploaded_file_ruta:
-        pdf_fuente = uploaded_file_ruta
-
+    drive_busqueda = st.text_input("🔍 Buscar por No. Entrega en Google Drive:", placeholder="Ej: 20006895")
+    pdf_fuente = descargar_pdf_desde_drive(DRIVE_FOLDER_ID, drive_busqueda.strip()) if drive_busqueda.strip() else None
     if pdf_fuente:
         raw_obs = extract_observation_text(pdf_fuente)
-        pdf_full_text = extract_pdf_full_text(pdf_fuente)
-        meta_doc = extract_metadata_general(pdf_full_text)
-        
         if raw_obs:
-            structured_data = parse_observation_data(raw_obs)
-            municipio, region = procesar_ubicacion(structured_data["Dirección"])
-            maps_url = generar_link_maps(structured_data['Dirección'])
-
-            st.info(f"**BLOQUE DE TEXTO 'OBSERVACIÓN:' (RAW EXTRACT)**\n\n{raw_obs}")
-
-            st.markdown("### 📌 CAMPOS LOGÍSTICOS Y CATEGORIZACIÓN GEOGRÁFICA EXTRAÍDOS")
-
-            c1, c2, c3 = st.columns(3)
-            c1.markdown(f"**📍 DIRECCIÓN DE ENVÍO**\n\n`{structured_data['Dirección']}`")
-            c2.markdown(f"**🏢 MUNICIPIO / CIUDAD**\n\n`{municipio}`")
-            c3.markdown(f"**📍 ZONA / REGIÓN**\n\n`{region}`")
-
-            st.markdown("<br>", unsafe_allow_html=True)
-            c4, c5, c6 = st.columns(3)
-            c4.markdown(f"**🗺️ UBICACIÓN EN MAPA**\n\n[Abrir en Google Maps]({maps_url})")
-            c5.markdown(f"**👤 CONTACTO**\n\n{structured_data['Contacto']}")
-            c6.markdown(f"**📞 CELULAR / TELÉFONO**\n\n{structured_data['Celular']}")
-
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown(f"**📄 ORDEN DE COMPRA (OC)**\n\n`{structured_data['OC']}`")
-
-            st.markdown("---")
-            st.markdown("#### **DETALLES GENERALES DEL DOCUMENTO:**")
-            d1, d2, d3, d4 = st.columns(4)
-            d1.metric("No. Remisión", meta_doc["No. Remisión"])
-            d2.metric("Fecha Emisión", meta_doc["Fecha Emisión"])
-            d3.metric("Cliente / Empresa", meta_doc["Cliente / Empresa"])
-            d4.metric("Ciudad Destino", meta_doc["Ciudad Destino"])
-
-            st.markdown("---")
-
-            dict_registro = {
-                "Remisión": meta_doc["No. Remisión"],
-                "Fecha": meta_doc["Fecha Emisión"],
-                "Cliente": meta_doc["Cliente / Empresa"],
-                "OC": structured_data["OC"],
-                "Dirección": structured_data["Dirección"],
-                "Municipio": municipio,
-                "Zona / Región": region,
-                "Contacto": structured_data["Contacto"],
-                "Celular": structured_data["Celular"],
-                "Google Maps": maps_url
-            }
-            df_to_save = pd.DataFrame([dict_registro])
-
-            col_b1, col_b2 = st.columns(2)
-            with col_b1:
-                csv_bytes = df_to_save.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Descargar CSV",
-                    data=csv_bytes,
-                    file_name=f"Remision_{meta_doc['No. Remisión']}.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-            with col_b2:
-                if st.button("💾 Guardar en Registro Maestro", use_container_width=True):
-                    file_exists = os.path.exists(MASTER_CSV_PATH)
-                    df_to_save.to_csv(MASTER_CSV_PATH, mode='a', header=not file_exists, index=False, encoding='utf-8-sig')
-                    st.success(f"✅ ¡Guardado exitosamente en `{MASTER_CSV_PATH}`!")
-        else:
-            st.error("No se pudo identificar el campo 'Observación' en el documento.")
-
-# --- PESTAÑAS EXCLUSIVAS MODO DESTROLLER ---
-if es_dev_autenticado:
-    with tab_extractor:
-        st.subheader("📑 Clasificador Individual Avanzado")
-        st.markdown("Herramienta de análisis detallado exclusiva para desarrolladores/administradores.")
-        uploaded_file_ext = st.file_uploader("Cargar PDF para auditoría", type="pdf", key="uploader_clasificador_dev")
-        if uploaded_file_ext:
-            txt = extract_pdf_full_text(uploaded_file_ext)
-            st.code(txt[:1000], language="text")
-
-    with tab_maestro:
-        st.subheader("🗂️ Registro Maestro de Entregas")
-        st.markdown("Base de datos sincronizada de órdenes de entrega, direcciones y contactos de TUVACOL S.A.")
-
-        if os.path.exists(MASTER_CSV_PATH):
-            df_master = pd.read_csv(MASTER_CSV_PATH)
-            
-            search_query = st.text_input("🔍 Buscar por Orden de Compra (OC), Contacto, Dirección, Cliente o Documento...", "", key="search_master_destroller")
-
-            if search_query.strip() != "":
-                mask = df_master.astype(str).apply(lambda x: x.str.contains(search_query, case=False, na=False)).any(axis=1)
-                df_filtered = df_master[mask]
-            else:
-                df_filtered = df_master
-
-            st.info(f"Mostrando **{len(df_filtered)}** registro(s) en el sistema.")
-            st.dataframe(df_filtered, use_container_width=True)
-
-            col_m1, col_m2, col_m3 = st.columns(3)
-            with col_m1:
-                csv_master = df_master.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Exportar CSV Completo", csv_master, "registro_maestro_tuvacol.csv", "text/csv", use_container_width=True)
-            with col_m2:
-                if st.button("🗑️ Limpiar Registro Maestro", type="secondary", use_container_width=True):
-                    if os.path.exists(MASTER_CSV_PATH):
-                        os.remove(MASTER_CSV_PATH)
-                        st.success("🧹 Registro maestro reiniciado.")
-                        st.rerun()
-            with col_m3:
-                if st.button("🔄 Actualizar Tabla", use_container_width=True):
-                    st.rerun()
-        else:
-            st.warning("⚠️ Todavía no hay registros guardados en el sistema.")
-
-    with tab4:
-        st.subheader("📜 Log Auditoría de Ejecución")
-        if os.path.exists(LOG_FILENAME):
-            with open(LOG_FILENAME, "r", encoding="utf-8") as f:
-                log_content = f.read()
-            st.download_button("💾 Descargar log_ejecucion.txt", log_content, LOG_FILENAME, "text/plain")
-            st.text_area("Contenido del log:", value=log_content, height=400)
-            
+            structured = parse_observation_data(raw_obs)
+            muni, reg = procesar_ubicacion(structured["Dirección"])
+            st.info(f"Dirección: {structured['Dirección']} | Región: {reg}")
