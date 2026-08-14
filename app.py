@@ -84,43 +84,7 @@ def get_google_creds():
         return service_account.Credentials.from_service_account_file('credentials.json', scopes=scope)
     return None
 def descargar_pdf_desde_drive(folder_id, numero_entrega):
-    try:
-        creds = get_google_creds()
-        if not creds:
-            st.error("❌ Error crítico: No se obtuvieron credenciales de Google en st.secrets.")
-            return None
-            
-        service = build('drive', 'v3', credentials=creds)
 
-        # Búsqueda flexible por nombre o contenido
-        query = f"'{folder_id}' in parents and mimeType='application/pdf' and name contains '{numero_entrega}' and trashed=false"
-        results = service.files().list(q=query, pageSize=5, fields="files(id, name)").execute()
-        files = results.get('files', [])
-
-        if not files:
-            # Mostramos una advertencia visual clara en la app para saber que llegó a Google pero no halló el archivo
-            st.warning(f"⚠️ Conexión a Drive exitosa, pero no se encontró ningún PDF con el número '{numero_entrega}' en la carpeta ID: {folder_id}")
-            registrar_log(f"No se encontró PDF en Drive para la entrega: {numero_entrega}", "WARNING")
-            return None
-
-        file_id = files[0]['id']
-        file_name = files[0]['name']
-        st.success(f"¡Archivo localizado en Drive!: {file_name}")
-
-        request = service.files().get_media(fileId=file_id)
-        fh = io.BytesIO()
-        downloader = MediaIoBaseDownload(fh, request)
-        done = False
-        while not done:
-            status, done = downloader.next_chunk()
-
-        fh.seek(0)
-        return fh
-
-    except Exception as e:
-        st.error(f"❌ Error de API de Google Drive: {e}")
-        registrar_log(f"Error al descargar PDF de Drive para {numero_entrega}: {e}", "ERROR")
-        return None
 
 # ---------------------------------------------------------
 # Conexión a Supabase (Autenticación y Licencias)
