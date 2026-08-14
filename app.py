@@ -891,22 +891,21 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     return buffer.getvalue()
 
 # ---------------------------------------------------------
-# Extractor Inteligente de Materiales
+# Extractor Inteligente de Materiales (Actualizado con pdfplumber)
 # ---------------------------------------------------------
 def extraer_tabla_materiales(pdf_source, nombre_doc="Desconocido"):
     texto_completo = ""
 
     try:
-        reader = pypdf.PdfReader(pdf_source, strict=False)
-        for page in reader.pages:
-            try:
+        if hasattr(pdf_source, 'seek'):
+            pdf_source.seek(0)
+        with pdfplumber.open(pdf_source) as pdf:
+            for page in pdf.pages:
                 txt = page.extract_text()
                 if txt:
                     texto_completo += txt + "\n"
-            except Exception as pe:
-                registrar_log(f"[{nombre_doc}] Error al extraer texto de una página: {pe}", "WARNING")
     except Exception as e:
-        registrar_log(f"[{nombre_doc}] Error crítico de lectura de PDF: {e}", "ERROR")
+        registrar_log(f"[{nombre_doc}] Error crítico de lectura de PDF con pdfplumber: {e}", "ERROR")
         st.warning(f"⚠️ El archivo `{nombre_doc}` está corrupto o incompleto en el origen. Se omitirá del cálculo.")
         return []
 
