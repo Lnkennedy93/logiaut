@@ -375,7 +375,7 @@ else:
         registrar_log(f"No se pudo validar la IP de la sesión: {e}", "WARNING")
 
 # ---------------------------------------------------------
-# Capa de Datos Inteligente (Patrón Clean Core - SAP BTP / Google)
+# Capa de Datos Inteligente (Patrón Clean Core - SAP BTP2 / Google)
 # ---------------------------------------------------------
 def limpiar_peso(valor):
     if pd.isna(valor):
