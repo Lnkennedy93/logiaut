@@ -1294,6 +1294,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     submitted = st.form_submit_button(label="💾 Guardar Cambios")
 
                     if submitted:
+                        total_empaques = guacales + estibas + cajas + paquetes + sobres + tubos
                         required_fields = [
                             dest_name_input, dest_address_input, d_nombre_input,
                             d_placa_input, d_cedula_input, d_marca_input,
@@ -1302,6 +1303,9 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                         if not all(field.strip() for field in required_fields):
                             st.session_state[f"datos_guardados_{tab_key}"] = False
                             st.error("❌ Todos los campos son obligatorios. Rellénalos todos para habilitar las descargas.")
+                        elif total_empaques <= 0:
+                            st.session_state[f"datos_guardados_{tab_key}"] = False
+                            st.error("❌ Debes indicar la cantidad de al menos un tipo de empaque. La suma total no puede ser 0.")
                         else:
                             st.session_state[f"datos_guardados_{tab_key}"] = True
                             st.session_state[f"saved_data_{tab_key}"] = {
@@ -1322,7 +1326,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                             st.success("✅ ¡Datos guardados correctamente! Ya puedes descargar los formatos oficiales abajo.")
 
                 if not st.session_state.get(f"datos_guardados_{tab_key}", False):
-                    st.warning("🔒 Descargas bloqueadas. Rellena todos los campos y presiona el botón **Guardar Cambios**.")
+                    st.warning("🔒 Descargas bloqueadas. Completa los campos e indica al menos un empaque con cantidad mayor a 0.")
                 else:
                     saved = st.session_state[f"saved_data_{tab_key}"]
                     saved_emp = st.session_state.get(f"saved_empaques_{tab_key}", {})
