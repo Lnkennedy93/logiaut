@@ -28,7 +28,7 @@ from supabase import create_client, Client
 # ---------------------------------------------------------
 # Configuración inicial de Streamlit
 # ---------------------------------------------------------
-st.set_page_config(page_title="Extractor y Calculadora TUVACOL S.A.", page_icon="📦", layout="wide")
+st.set_page_config(page_title="Asistente_web", page_icon="📦", layout="wide")
 
 st.markdown(
     """
@@ -36,6 +36,43 @@ st.markdown(
     <head>
         <meta name="google" content="notranslate" />
     </head>
+    """,
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    """
+    <style>
+        .stDataFrame, .stTable {
+            width: 100% !important;
+            overflow-x: auto !important;
+        }
+        div[data-testid="stDataFrame"] div, td, th {
+            white-space: normal !important;
+            word-wrap: break-word !important;
+            text-overflow: clip !important;
+        }
+        div.stButton > button:first-child {
+            background-color: #1F3864 !important;
+            color: white !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            padding: 0.85rem 1.5rem !important;
+            border-radius: 8px !important;
+            border: 2px solid #ffffff !important;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3) !important;
+            width: 100% !important;
+        }
+        div.stButton > button:first-child:hover {
+            background-color: #2c4d8c !important;
+            border-color: #f0f2f6 !important;
+        }
+        @media (max-width: 768px) {
+            .main .block-container {
+                padding: 1rem 0.5rem;
+            }
+        }
+    </style>
     """,
     unsafe_allow_html=True
 )
@@ -1320,9 +1357,8 @@ if es_dev_autenticado:
         "Gestión de Rutas", "Clasificador de Rutas", "🗂️ Registro Maestro", "📜 Logs"
     ])
 else:
-    tab1, tab2, tab3, tab_rutas = st.tabs([
-        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío",
-        "Gestión de Rutas"
+    tab1, tab2, tab3 = st.tabs([
+        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío"
     ])
 
 with tab1:
@@ -1366,13 +1402,14 @@ with tab3:
     lista_fuentes = [(f, f"Entrega_{re.search(r'\d+', f.name).group(0)}") for f in uploaded_files] if uploaded_files else []
     render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
 
-with tab_rutas:
-    st.subheader("Clasificador de Rutas")
-    drive_busqueda = st.text_input("🔍 Buscar por No. Entrega en Google Drive:", placeholder="Ej: 20006895")
-    pdf_fuente = descargar_pdf_desde_drive(DRIVE_FOLDER_ID, drive_busqueda.strip()) if drive_busqueda.strip() else None
-    if pdf_fuente:
-        raw_obs = extract_observation_text(pdf_fuente)
-        if raw_obs:
-            structured = parse_observation_data(raw_obs)
-            muni, reg = procesar_ubicacion(structured["Dirección"])
-            st.info(f"Dirección: {structured['Dirección']} | Región: {reg}")
+if es_dev_autenticado:
+    with tab_rutas:
+        st.subheader("Clasificador de Rutas")
+        drive_busqueda = st.text_input("🔍 Buscar por No. Entrega en Google Drive:", placeholder="Ej: 20006895")
+        pdf_fuente = descargar_pdf_desde_drive(DRIVE_FOLDER_ID, drive_busqueda.strip()) if drive_busqueda.strip() else None
+        if pdf_fuente:
+            raw_obs = extract_observation_text(pdf_fuente)
+            if raw_obs:
+                structured = parse_observation_data(raw_obs)
+                muni, reg = procesar_ubicacion(structured["Dirección"])
+                st.info(f"Dirección: {structured['Dirección']} | Región: {reg}")
