@@ -9,6 +9,7 @@ import re
 import os
 import io
 import base64
+import html
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -1369,7 +1370,14 @@ with tab1:
         item = get_product_data_from_source(codigo_input, df_bd)
         if item is not None:
             peso_unit = float(str(item.get('Peso_KG', 0.0)).replace(',', '.'))
-            st.info(f"**📦 Código:** {item['Codigo']}  |  **📝 Descripción completa:** {item['Descripcion']}")
+            codigo_mostrado = html.escape(str(item['Codigo']))
+            descripcion_mostrada = html.escape(str(item['Descripcion']))
+            st.markdown(f"""
+                <div style="background-color: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 5px solid #1F3864; margin-bottom: 15px;">
+                    <p style="margin: 0; font-size: 16px; color: #1F3864;"><b>📦 Código:</b> {codigo_mostrado}</p>
+                    <p style="margin: 5px 0 0 0; font-size: 16px; color: #000000;"><b>📝 Descripción Completa:</b> {descripcion_mostrada}</p>
+                </div>
+            """, unsafe_allow_html=True)
             res_col1, res_col2 = st.columns(2)
             res_col1.metric("⚖️ Peso Unitario", f"{peso_unit:.2f} KG")
             res_col2.metric("📊 Peso Total", f"{peso_unit * cant_input:.2f} KG")
@@ -1398,15 +1406,17 @@ with tab2:
 with tab3:
     st.subheader("📤 Generador de Relación de Envio (Subir Archivos PDF)")
     if st.button("🗑️ Limpiar Formulario y Archivos Subidos", key="btn_clear_tab3", use_container_width=True):
-        for state_key in ["uploader_tab3", "saved_data_tab3", "datos_guardados_tab3"]:
-            st.session_state.pop(state_key, None)
+        st.session_state["uploader_file_key"] = st.session_state.get("uploader_file_key", 0) + 1
+        st.session_state.pop("saved_data_tab3", None)
+        st.session_state.pop("datos_guardados_tab3", None)
         st.rerun()
 
+    file_uploader_key = st.session_state.get("uploader_file_key", 0)
     uploaded_files = st.file_uploader(
         "Cargar PDFs de Entrega",
         type=["pdf"],
         accept_multiple_files=True,
-        key="uploader_tab3"
+        key=f"uploader_tab3_{file_uploader_key}"
     )
     lista_fuentes = [(f, f"Entrega_{re.search(r'\d+', f.name).group(0)}") for f in uploaded_files] if uploaded_files else []
     render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
