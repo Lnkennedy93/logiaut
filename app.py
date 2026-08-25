@@ -201,7 +201,7 @@ def subir_pdf_a_drive(file_obj, file_name, folder_id):
     try:
         creds = get_google_creds()
         if not creds:
-            return None
+            raise RuntimeError("No se encontraron credenciales de Google")
         service = build("drive", "v3", credentials=creds)
         if hasattr(file_obj, "seek"):
             file_obj.seek(0)
@@ -220,10 +220,13 @@ def subir_pdf_a_drive(file_obj, file_name, folder_id):
             fields="id, webViewLink",
             supportsAllDrives=True
         ).execute()
-        return uploaded.get("webViewLink") or f"https://drive.google.com/file/d/{uploaded['id']}/view"
+        file_id = uploaded.get("id")
+        if not file_id:
+            raise RuntimeError("Google Drive no devolvió el ID del archivo creado")
+        return uploaded.get("webViewLink") or f"https://drive.google.com/file/d/{file_id}/view"
     except Exception as e:
-        registrar_log(f"Error al subir copia de PDF a Drive: {e}", "ERROR")
-        return None
+        registrar_log(f"Error al subir copia de PDF '{file_name}' a Drive: {e}", "ERROR")
+        raise RuntimeError(f"No se pudo subir '{file_name}' a Google Drive: {e}") from e
 
 def obtener_siguiente_consecutivo():
     try:
@@ -1484,8 +1487,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                                 for file_obj, _ in lista_fuentes:
                                     if file_obj is not None and hasattr(file_obj, "read"):
                                         link = subir_pdf_a_drive(file_obj, file_obj.name, DRIVE_FOLDER_ID)
-                                        if link:
-                                            pdf_links.append(link)
+                                        pdf_links.append(link)
                                 registrar_relacion_en_sheets(
                                     consecutivo_generado,
                                     datetime.datetime.now().strftime("%d-%m-%Y"),
