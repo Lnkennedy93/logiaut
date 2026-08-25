@@ -1399,7 +1399,7 @@ if st.sidebar.button("🔄 Sincronizar Google Sheets Oficial"):
     st.cache_data.clear()
     st.rerun()
 
-st.title("📦 Calculadora de Pesos para Despacho de Materiales")
+st.title("👍 Facilitador De Procesos Administrativos")
 
 if es_dev_autenticado:
     tab1, tab2, tab3, tab_rutas, tab_extractor, tab_maestro, tab4 = st.tabs([
@@ -1434,23 +1434,47 @@ with tab1:
             st.warning("⚠️ No se encontraron coincidencias.")
 
 with tab2:
-    st.subheader("Búsqueda y Cálculo por Número de Entrega")
-    num_entregas_input = st.text_input("Números de Entrega:", placeholder="Ej: 20005021, 3171")
-    todos_los_items = []
-    encontrados = []
-    no_encontrados = []
-    if num_entregas_input.strip():
-        for num in [n.strip() for n in re.split(r'[\s,]+', num_entregas_input) if n.strip()][:50]:
-            items = obtener_datos_entrega_source(num)
-            if items:
-                todos_los_items.extend(items)
-                encontrados.append(num)
-            else:
-                no_encontrados.append(num)
-        if encontrados: st.success(f"✅ Procesados: {', '.join(encontrados)}")
-        if no_encontrados: st.error(f"❌ No encontrados: {', '.join(no_encontrados)}")
-    if todos_los_items:
-        render_procesamiento_despacho([(None, f"Entrega_{num}") for num in encontrados], "tab2", mostrar_exportacion=True)
+    st.subheader("Búsqueda por Número de Entrega o Carga de PDF")
+    modo_procesar = st.radio(
+        "Seleccione el método de entrada:",
+        ["Buscar por Número de Entrega (Google Drive)", "Subir Archivo PDF Local"],
+        horizontal=True,
+        key="modo_procesar_tab2"
+    )
+
+    if modo_procesar == "Buscar por Número de Entrega (Google Drive)":
+        num_entregas_input = st.text_input("Números de Entrega:", placeholder="Ej: 20005021, 3171")
+        encontrados = []
+        no_encontrados = []
+        if num_entregas_input.strip():
+            for num in [n.strip() for n in re.split(r'[\s,]+', num_entregas_input) if n.strip()][:50]:
+                items = obtener_datos_entrega_source(num)
+                if items:
+                    encontrados.append(num)
+                else:
+                    no_encontrados.append(num)
+            if encontrados: st.success(f"✅ Procesados: {', '.join(encontrados)}")
+            if no_encontrados: st.error(f"❌ No encontrados: {', '.join(no_encontrados)}")
+        if encontrados:
+            render_procesamiento_despacho(
+                [(None, f"Entrega_{num}") for num in encontrados],
+                "tab2_drive",
+                mostrar_exportacion=True
+            )
+    else:
+        uploaded_files_tab2 = st.file_uploader(
+            "Cargar PDFs de Remisión",
+            type=["pdf"],
+            accept_multiple_files=True,
+            key="uploader_tab2_local"
+        )
+        lista_fuentes_local = []
+        if uploaded_files_tab2:
+            for uploaded_file in uploaded_files_tab2:
+                match = re.search(r'\d+', uploaded_file.name)
+                tag = match.group(0) if match else uploaded_file.name
+                lista_fuentes_local.append((uploaded_file, f"Entrega_{tag}"))
+        render_procesamiento_despacho(lista_fuentes_local, "tab2_local", mostrar_exportacion=True)
 
 with tab3:
     st.subheader("📤 Generador de Relación de Envio (Subir Archivos PDF)")
