@@ -1369,11 +1369,10 @@ with tab1:
         item = get_product_data_from_source(codigo_input, df_bd)
         if item is not None:
             peso_unit = float(str(item.get('Peso_KG', 0.0)).replace(',', '.'))
-            res_col1, res_col2, res_col3, res_col4 = st.columns(4)
-            res_col1.metric("Código", str(item['Codigo']))
-            res_col2.metric("Descripción", str(item['Descripcion']))
-            res_col3.metric("Peso Unitario", f"{peso_unit:.2f} KG")
-            res_col4.metric("Peso Total", f"{peso_unit * cant_input:.2f} KG")
+            st.info(f"**📦 Código:** {item['Codigo']}  |  **📝 Descripción completa:** {item['Descripcion']}")
+            res_col1, res_col2 = st.columns(2)
+            res_col1.metric("⚖️ Peso Unitario", f"{peso_unit:.2f} KG")
+            res_col2.metric("📊 Peso Total", f"{peso_unit * cant_input:.2f} KG")
         else:
             st.warning("⚠️ No se encontraron coincidencias.")
 
@@ -1398,7 +1397,17 @@ with tab2:
 
 with tab3:
     st.subheader("📤 Generador de Relación de Envio (Subir Archivos PDF)")
-    uploaded_files = st.file_uploader("Cargar PDFs", type=["pdf"], accept_multiple_files=True)
+    if st.button("🗑️ Limpiar Formulario y Archivos Subidos", key="btn_clear_tab3", use_container_width=True):
+        for state_key in ["uploader_tab3", "saved_data_tab3", "datos_guardados_tab3"]:
+            st.session_state.pop(state_key, None)
+        st.rerun()
+
+    uploaded_files = st.file_uploader(
+        "Cargar PDFs de Entrega",
+        type=["pdf"],
+        accept_multiple_files=True,
+        key="uploader_tab3"
+    )
     lista_fuentes = [(f, f"Entrega_{re.search(r'\d+', f.name).group(0)}") for f in uploaded_files] if uploaded_files else []
     render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
 
