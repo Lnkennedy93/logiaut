@@ -422,10 +422,11 @@ def cargar_bd_local(ruta_archivo):
 # ---------------------------------------------------------
 # Generadores Excel y PDF (GID-F-010)
 # ---------------------------------------------------------
-def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None):
+def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None):
     if driver_info is None: driver_info = {}
     if dest_info is None: dest_info = {}
     if elaborado_info is None: elaborado_info = {}
+    if empaques_info is None: empaques_info = {}
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -611,7 +612,11 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
         i = j
 
     docs_str = ", ".join(docs_unicos)
-    obs_texto = f"Observaciones: TOTAL: {tot_und:,.0f} UND, {tot_mts:,.0f} MTS | DOCS: {docs_str}"
+    emp_str = ", ".join(
+        f"{nombre}: {empaques_info.get(nombre, 0)}"
+        for nombre in ["Guacales", "Estibas", "Cajas", "Paquetes", "Sobres", "Tubos"]
+    )
+    obs_texto = f"Observaciones: TOTAL: {tot_und:,.0f} UND, {tot_mts:,.0f} MTS | Empaques: {emp_str} | DOCS: {docs_str}"
 
     ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=4)
     ws.cell(current_row, 1, obs_texto).font = font_calibri_9_bold
@@ -725,10 +730,11 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
     return output.getvalue()
 
 
-def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None):
+def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None):
     if driver_info is None: driver_info = {}
     if dest_info is None: dest_info = {}
     if elaborado_info is None: elaborado_info = {}
+    if empaques_info is None: empaques_info = {}
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -840,7 +846,11 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         ])
 
     docs_str = ", ".join(docs_unicos)
-    obs_texto = f"Observaciones: TOTAL: {tot_und:,.0f} UND, {tot_mts:,.0f} MTS | DOCS: {docs_str}"
+    emp_str = ", ".join(
+        f"{nombre}: {empaques_info.get(nombre, 0)}"
+        for nombre in ["Guacales", "Estibas", "Cajas", "Paquetes", "Sobres", "Tubos"]
+    )
+    obs_texto = f"Observaciones: TOTAL: {tot_und:,.0f} UND, {tot_mts:,.0f} MTS | Empaques: {emp_str} | DOCS: {docs_str}"
 
     d_table_data.append([
         Paragraph(f"<b>{obs_texto}</b>", normal_style),
@@ -1264,6 +1274,23 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     st.markdown("### ✍️ Información de Elaboración")
                     elab_nombre_input = st.text_input("Elaborado por (Nombre y Cargo) *", value=saved["elab_nombre"])
 
+                    st.markdown("---")
+                    st.markdown("#### 📦 Cantidades de Empaques Requeridos (Obligatorios)")
+                    saved_emp = st.session_state.get(f"saved_empaques_{tab_key}", {
+                        "Guacales": 0, "Estibas": 0, "Cajas": 0,
+                        "Paquetes": 0, "Sobres": 0, "Tubos": 0
+                    })
+                    emp_col1, emp_col2, emp_col3 = st.columns(3)
+                    with emp_col1:
+                        guacales = st.number_input("1. Guacales *", min_value=0, step=1, value=int(saved_emp["Guacales"]))
+                        estibas = st.number_input("2. Estibas *", min_value=0, step=1, value=int(saved_emp["Estibas"]))
+                    with emp_col2:
+                        cajas = st.number_input("3. Cajas *", min_value=0, step=1, value=int(saved_emp["Cajas"]))
+                        paquetes = st.number_input("4. Paquetes *", min_value=0, step=1, value=int(saved_emp["Paquetes"]))
+                    with emp_col3:
+                        sobres = st.number_input("5. Sobres *", min_value=0, step=1, value=int(saved_emp["Sobres"]))
+                        tubos = st.number_input("6. Tubos *", min_value=0, step=1, value=int(saved_emp["Tubos"]))
+
                     submitted = st.form_submit_button(label="💾 Guardar Cambios")
 
                     if submitted:
@@ -1288,12 +1315,17 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                                 "d_transp": d_transp_input.strip(),
                                 "elab_nombre": elab_nombre_input.strip()
                             }
+                            st.session_state[f"saved_empaques_{tab_key}"] = {
+                                "Guacales": guacales, "Estibas": estibas, "Cajas": cajas,
+                                "Paquetes": paquetes, "Sobres": sobres, "Tubos": tubos
+                            }
                             st.success("✅ ¡Datos guardados correctamente! Ya puedes descargar los formatos oficiales abajo.")
 
                 if not st.session_state.get(f"datos_guardados_{tab_key}", False):
                     st.warning("🔒 Descargas bloqueadas. Rellena todos los campos y presiona el botón **Guardar Cambios**.")
                 else:
                     saved = st.session_state[f"saved_data_{tab_key}"]
+                    saved_emp = st.session_state.get(f"saved_empaques_{tab_key}", {})
                     dest_info = {"nombre": saved["dest_name"], "direccion": saved["dest_address"]}
                     driver_info = {
                         "nombre": saved["d_nombre"], "cedula": saved["d_cedula"], "celular": saved["d_celular"],
@@ -1304,8 +1336,8 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     st.markdown("---")
                     st.markdown("### 📥 Exportar y Previsualizar Formato Oficial TUVACOL (GID-F-010)")
                 
-                    excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info)
-                    pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info)
+                    excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, saved_emp)
+                    pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, saved_emp)
 
                     with st.expander("👁️ Previsualizar Documento Generado (PDF)", expanded=False):
                         base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
@@ -1421,6 +1453,7 @@ with tab3:
     if st.button("🗑️ Limpiar Formulario y Archivos Subidos", key="btn_clear_tab3", use_container_width=True):
         st.session_state["uploader_file_key"] = st.session_state.get("uploader_file_key", 0) + 1
         st.session_state.pop("saved_data_tab3", None)
+        st.session_state.pop("saved_empaques_tab3", None)
         st.session_state.pop("datos_guardados_tab3", None)
         st.rerun()
 
