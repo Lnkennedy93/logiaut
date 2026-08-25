@@ -10,6 +10,7 @@ import os
 import io
 import base64
 import html
+import uuid
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -116,10 +117,15 @@ registrar_log("--- Sesión iniciada ---")
 def get_client_ip():
     try:
         headers = getattr(getattr(st, "context", None), "headers", {})
-        ip = headers.get("X-Forwarded-For") or headers.get("X-Real-IP") or "127.0.0.1"
-        return ip.split(",")[0].strip()
+        ip = headers.get("X-Forwarded-For") or headers.get("X-Real-IP")
+        if ip:
+            return ip.split(",")[0].strip()
     except Exception:
-        return "127.0.0.1"
+        pass
+
+    if "browser_session_id" not in st.session_state:
+        st.session_state["browser_session_id"] = str(uuid.uuid4())
+    return st.session_state["browser_session_id"]
 
 # ---------------------------------------------------------
 # Conexión Inteligente Google Drive (Híbrida: Local/Nube)
@@ -247,6 +253,7 @@ def pantalla_login():
                     st.session_state.autenticado = True
                     st.session_state.usuario_actual = user_data["correo"]
                     st.session_state.empresa_actual = user_data["empresa"]
+                    st.session_state.login_token = client_ip
                     st.success("¡Licencia verificada con éxito!")
                     st.rerun()
                 else:
@@ -274,7 +281,8 @@ else:
         ).execute()
         if response_ip.data:
             stored_ip = response_ip.data[0].get("current_ip")
-            if stored_ip and stored_ip != current_client_ip:
+            login_token = st.session_state.get("login_token")
+            if login_token and stored_ip and stored_ip != login_token:
                 st.session_state.autenticado = False
                 st.session_state.usuario_actual = None
                 st.session_state.empresa_actual = None
