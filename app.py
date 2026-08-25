@@ -377,6 +377,21 @@ else:
 # ---------------------------------------------------------
 # Capa de Datos Inteligente (Patrón Clean Core - SAP BTP / Google)
 # ---------------------------------------------------------
+def limpiar_peso(valor):
+    if pd.isna(valor):
+        return 0.0
+    valor_limpio = str(valor).strip().upper()
+    valor_limpio = re.sub(r"\s*(KG|KILOS?|GRAMOS?)\s*$", "", valor_limpio)
+    valor_limpio = valor_limpio.replace(" ", "")
+    if "," in valor_limpio and "." in valor_limpio:
+        valor_limpio = valor_limpio.replace(".", "").replace(",", ".")
+    else:
+        valor_limpio = valor_limpio.replace(",", ".")
+    try:
+        return float(valor_limpio)
+    except (TypeError, ValueError):
+        return 0.0
+
 def get_product_data_from_source(codigo_input, df_bd):
     """
     Capa de abstracción de datos con prioridad de coincidencia exacta
@@ -453,7 +468,7 @@ def fetch_google_sheet_database(custom_url=None):
             idx_header = 0
             for idx, row in df_h.iterrows():
                 row_str = " ".join([str(val).lower() for val in row.values if pd.notna(val)])
-                if any(k in row_str for k in ['código', 'codigo', 'artículo', 'articulo', 'material']) and any(k in row_str for k in ['peso', 'kg']):
+                if any(k in row_str for k in ['código', 'codigo', 'artículo', 'articulo', 'material']) and any(k in row_str for k in ['peso', 'kg', 'kilos', 'gramos']):
                     idx_header = idx
                     break
 
@@ -469,7 +484,7 @@ def fetch_google_sheet_database(custom_url=None):
                     renames[col] = 'Codigo'
                 elif 'desc' in c_low and 'Descripcion' not in renames.values():
                     renames[col] = 'Descripcion'
-                elif any(k in c_low for k in ['peso', 'kg']) and 'Peso_KG' not in renames.values():
+                elif any(k in c_low for k in ['peso', 'kg', 'kilos', 'gramos']) and 'Peso_KG' not in renames.values():
                     renames[col] = 'Peso_KG'
 
             df_h = df_h.rename(columns=renames)
@@ -489,6 +504,7 @@ def fetch_google_sheet_database(custom_url=None):
                 .str.replace(r'\.0$', '', regex=True)
                 .str.lstrip('0')
             )
+            df_final['Peso_KG'] = df_final['Peso_KG'].apply(limpiar_peso)
             registrar_log(f"Sincronización exitosa. Total: {len(df_final)} productos en {len(list_dfs)} pestañas.")
             return df_final
         else:
@@ -518,7 +534,7 @@ def cargar_bd_local(ruta_archivo):
                         renames[col] = 'Codigo'
                     elif 'desc' in c_low and 'Descripcion' not in renames.values():
                         renames[col] = 'Descripcion'
-                    elif any(k in c_low for k in ['peso', 'kg']) and 'Peso_KG' not in renames.values():
+                    elif any(k in c_low for k in ['peso', 'kg', 'kilos', 'gramos']) and 'Peso_KG' not in renames.values():
                         renames[col] = 'Peso_KG'
 
                 df_h = df_h.rename(columns=renames)
@@ -538,6 +554,7 @@ def cargar_bd_local(ruta_archivo):
                 .str.replace(r'\.0$', '', regex=True)
                 .str.lstrip('0')
             )
+            df_final['Peso_KG'] = df_final['Peso_KG'].apply(limpiar_peso)
             return df_final
         return None
     except Exception as e:
@@ -1301,11 +1318,7 @@ def render_consulta_despacho(items):
     for _, row in df_resumen.iterrows():
         item_match = get_product_data_from_source(str(row["Código"]).strip(), df_bd)
         if item_match is not None:
-            peso_raw = str(item_match.get("Peso_KG", 0.0)).strip().replace(",", ".")
-            try:
-                peso_unitario = float(peso_raw)
-            except ValueError:
-                peso_unitario = 0.0
+            peso_unitario = limpiar_peso(item_match.get("Peso_KG", 0.0))
         else:
             peso_unitario = 0.0
         cantidad = float(row["Cantidad"])
@@ -1360,11 +1373,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
             item_match = get_product_data_from_source(codigo_item, df_bd)
 
             if item_match is not None:
-                p_raw = str(item_match.get('Peso_KG', 0.0)).strip().replace(',', '.').replace(' ', '')
-                try:
-                    p_val = float(p_raw)
-                except ValueError:
-                    p_val = 0.0
+                p_val = limpiar_peso(item_match.get('Peso_KG', 0.0))
             else:
                 p_val = 0.0
 
@@ -1613,7 +1622,7 @@ with tab1:
     if codigo_input.strip() != "":
         item = get_product_data_from_source(codigo_input, df_bd)
         if item is not None:
-            peso_unit = float(str(item.get('Peso_KG', 0.0)).replace(',', '.'))
+            peso_unit = limpiar_peso(item.get('Peso_KG', 0.0))
             codigo_mostrado = html.escape(str(item['Codigo']))
             descripcion_mostrada = html.escape(str(item['Descripcion']))
             st.markdown(f"""
