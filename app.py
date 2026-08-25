@@ -249,7 +249,9 @@ def pantalla_login():
                             {"current_ip": client_ip}
                         ).eq("correo", user_data["correo"]).execute()
                     except Exception as e:
-                        registrar_log(f"No se pudo registrar la IP de la sesión: {e}", "WARNING")
+                        st.error(f"Error al registrar la sesión única: {e}")
+                        registrar_log(f"No se pudo registrar la IP de la sesión: {e}", "ERROR")
+                        return
                     st.session_state.autenticado = True
                     st.session_state.usuario_actual = user_data["correo"]
                     st.session_state.empresa_actual = user_data["empresa"]
@@ -1516,6 +1518,10 @@ with tab1:
 
 with tab2:
     st.subheader("Búsqueda por Número de Entrega o Carga de PDF")
+    if st.button("🗑️ Limpiar PDFs Subidos / Consultas", key="btn_clear_tab2", use_container_width=True):
+        st.session_state["uploader_tab2_key"] = st.session_state.get("uploader_tab2_key", 0) + 1
+        st.rerun()
+
     modo_procesar = st.radio(
         "Seleccione el método de entrada:",
         ["Buscar por Número de Entrega (Google Drive)", "Subir Archivo PDF Local"],
@@ -1540,11 +1546,12 @@ with tab2:
             if no_encontrados: st.error(f"❌ No encontrados: {', '.join(no_encontrados)}")
         render_consulta_despacho(todos_los_items)
     else:
+        file_key_tab2 = st.session_state.get("uploader_tab2_key", 0)
         uploaded_files_tab2 = st.file_uploader(
             "Cargar PDFs de Remisión",
             type=["pdf"],
             accept_multiple_files=True,
-            key="uploader_tab2_local"
+            key=f"uploader_tab2_local_{file_key_tab2}"
         )
         todos_los_items_locales = []
         if uploaded_files_tab2:
