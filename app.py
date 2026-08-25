@@ -53,20 +53,21 @@ st.markdown(
             word-wrap: break-word !important;
             text-overflow: clip !important;
         }
-        div.stButton > button:first-child {
+        div.stFormSubmitButton > button {
             background-color: #1F3864 !important;
             color: white !important;
-            font-size: 16px !important;
+            font-size: 18px !important;
             font-weight: bold !important;
-            padding: 0.85rem 1.5rem !important;
-            border-radius: 8px !important;
-            border: 2px solid #ffffff !important;
-            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3) !important;
+            padding: 1rem 2rem !important;
+            border-radius: 10px !important;
+            border: 3px solid #FFD700 !important;
+            box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.4) !important;
             width: 100% !important;
+            cursor: pointer !important;
         }
-        div.stButton > button:first-child:hover {
+        div.stFormSubmitButton > button:hover {
             background-color: #2c4d8c !important;
-            border-color: #f0f2f6 !important;
+            border-color: #ffffff !important;
         }
         @media (max-width: 768px) {
             .main .block-container {
@@ -237,7 +238,7 @@ def pantalla_login():
         st.markdown(
             """
             <div style="text-align: center; color: gray; font-size: 14px;">
-                <p>Pensado para facilitar tu trabajo</p>
+                <p>Dificil Mientras Llega A Nosotros</p>
                 <p><b>Elaborado por Liontech</b></p>
             </div>
             """,
@@ -649,7 +650,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
 
     ws.cell(current_row, 4, "Nombre:").font = font_arial_9
     ws.merge_cells(start_row=current_row, start_column=5, end_row=current_row, end_column=7)
-    ws.cell(current_row, 5, dest_info.get("nombre", "DESPACHOS CLIENTE / REMISIÓN CONSOLIDADA")).font = font_arial_bold_10
+    ws.cell(current_row, 5, dest_info.get("nombre", "")).font = font_arial_bold_10
 
     for col in range(1, 8):
         ws.cell(current_row, col).border = thin_border
@@ -661,7 +662,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
 
     ws.cell(current_row, 4, "Dirección y Teléfono:").font = font_arial_9
     ws.merge_cells(start_row=current_row, start_column=5, end_row=current_row, end_column=7)
-    ws.cell(current_row, 5, dest_info.get("direccion", "DIRECCIÓN DE DESTINO REGISTRADA EN REMISIONES")).font = Font(name="Arial", size=8)
+    ws.cell(current_row, 5, dest_info.get("direccion", "")).font = Font(name="Arial", size=8)
 
     for col in range(1, 8):
         ws.cell(current_row, col).border = thin_border
@@ -703,7 +704,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
         ws.cell(current_row, col).border = thin_border
     current_row += 2
 
-    elaborado_nombre = elaborado_info.get("nombre", "LOGÍSTICA TUVACOL S.A.")
+    elaborado_nombre = elaborado_info.get("nombre", "")
     ws.cell(current_row, 1, f"Elaborado por:\n{elaborado_nombre}").font = font_arial_9
     ws.cell(current_row, 4, "Firma y cédula del Conductor:").font = font_arial_9
     current_row += 2
@@ -884,13 +885,13 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
             Paragraph("<b>Nombre:</b>", normal_style), 
             Paragraph("TUVACOL SEDE FUNZA", bold_style), 
             Paragraph("<b>Nombre:</b>", normal_style), 
-            Paragraph(f"<b>{dest_info.get('nombre', 'DESPACHOS CLIENTE / REMISIÓN')}</b>", bold_style)
+            Paragraph(f"<b>{dest_info.get('nombre', '')}</b>", bold_style)
         ],
         [
             Paragraph("<b>Dirección/Tel:</b>", normal_style), 
             Paragraph("KM 3,5 VIA FUNZA SIBERIA BODEGA 1", normal_style), 
             Paragraph("<b>Dirección/Tel:</b>", normal_style), 
-            Paragraph(dest_info.get("direccion", "DIRECCIÓN DE DESTINO REGISTRADA EN REMISIONES"), normal_style)
+            Paragraph(dest_info.get("direccion", ""), normal_style)
         ]
     ]
     t_log = Table(log_data, colWidths=[70, 215, 70, 215])
@@ -931,7 +932,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     elements.append(t_drv)
     elements.append(Spacer(1, 15))
 
-    elab_nombre = elaborado_info.get("nombre", "LOGÍSTICA TUVACOL S.A.")
+    elab_nombre = elaborado_info.get("nombre", "")
     sig_data = [
         [Paragraph(f"<b>Elaborado por:</b><br/>{elab_nombre}", normal_style), Paragraph("<b>Firma y Cédula del Conductor:</b>", normal_style), Paragraph("<b>Recibe y Acepta:</b>", normal_style)],
         ["", "", ""],
@@ -1226,90 +1227,102 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
             if mostrar_exportacion:
                 st.markdown("---")
                 
-                if f"saved_data_{tab_key}" not in st.session_state:
-                    st.session_state[f"saved_data_{tab_key}"] = {
-                        "dest_name": "DESPACHOS CLIENTE / REMISIÓN",
-                        "dest_address": "DIRECCIÓN REGISTRADA EN REMISIONES",
-                        "d_nombre": "",
-                        "d_placa": "",
-                        "d_cedula": "",
-                        "d_marca": "",
-                        "d_celular": "",
-                        "d_transp": "",
-                        "elab_nombre": "LOGÍSTICA TUVACOL S.A."
-                    }
+                saved = st.session_state.get(f"saved_data_{tab_key}", {
+                    "dest_name": "",
+                    "dest_address": "",
+                    "d_nombre": "",
+                    "d_placa": "",
+                    "d_cedula": "",
+                    "d_marca": "",
+                    "d_celular": "",
+                    "d_transp": "",
+                    "elab_nombre": ""
+                })
 
                 with st.form(key=f"form_despacho_{tab_key}"):
                     st.markdown("### 📄 Datos del Destinatario")
                     col_dst1, col_dst2 = st.columns(2)
                     with col_dst1:
-                        dest_name_input = st.text_input("Nombre del Destinatario:", value=st.session_state[f"saved_data_{tab_key}"]["dest_name"])
+                        dest_name_input = st.text_input("Nombre del Destinatario *", value=saved["dest_name"])
                     with col_dst2:
-                        dest_address_input = st.text_input("Dirección / Teléfono del Destinatario:", value=st.session_state[f"saved_data_{tab_key}"]["dest_address"])
+                        dest_address_input = st.text_input("Dirección / Teléfono del Destinatario *", value=saved["dest_address"])
 
                     st.markdown("---")
                     st.markdown("### 🚛 Datos del Conductor y Vehiculo")
                     col_drv1, col_drv2, col_drv3 = st.columns(3)
                     with col_drv1:
-                        d_nombre_input = st.text_input("Nombre Completo Conductor:", value=st.session_state[f"saved_data_{tab_key}"]["d_nombre"])
-                        d_placa_input = st.text_input("Placa Vehículo:", value=st.session_state[f"saved_data_{tab_key}"]["d_placa"])
+                        d_nombre_input = st.text_input("Nombre Completo Conductor *", value=saved["d_nombre"])
+                        d_placa_input = st.text_input("Placa Vehículo *", value=saved["d_placa"])
                     with col_drv2:
-                        d_cedula_input = st.text_input("Cédula No.:", value=st.session_state[f"saved_data_{tab_key}"]["d_cedula"])
-                        d_marca_input = st.text_input("Marca / Modelo / Color:", value=st.session_state[f"saved_data_{tab_key}"]["d_marca"])
+                        d_cedula_input = st.text_input("Cédula No. *", value=saved["d_cedula"])
+                        d_marca_input = st.text_input("Marca / Modelo / Color *", value=saved["d_marca"])
                     with col_drv3:
-                        d_celular_input = st.text_input("Celular / Teléfono:", value=st.session_state[f"saved_data_{tab_key}"]["d_celular"])
-                        d_transp_input = st.text_input("Empresa Transportadora:", value=st.session_state[f"saved_data_{tab_key}"]["d_transp"])
+                        d_celular_input = st.text_input("Celular / Teléfono *", value=saved["d_celular"])
+                        d_transp_input = st.text_input("Empresa Transportadora *", value=saved["d_transp"])
 
                     st.markdown("---")
                     st.markdown("### ✍️ Información de Elaboración")
-                    elab_nombre_input = st.text_input("Elaborado por (Nombre y Cargo):", value=st.session_state[f"saved_data_{tab_key}"]["elab_nombre"])
+                    elab_nombre_input = st.text_input("Elaborado por (Nombre y Cargo) *", value=saved["elab_nombre"])
 
                     submitted = st.form_submit_button(label="💾 Guardar Cambios")
 
                     if submitted:
-                        st.session_state[f"saved_data_{tab_key}"] = {
-                            "dest_name": dest_name_input.strip(),
-                            "dest_address": dest_address_input.strip(),
-                            "d_nombre": d_nombre_input.strip(),
-                            "d_placa": d_placa_input.strip(),
-                            "d_cedula": d_cedula_input.strip(),
-                            "d_marca": d_marca_input.strip(),
-                            "d_celular": d_celular_input.strip(),
-                            "d_transp": d_transp_input.strip(),
-                            "elab_nombre": elab_nombre_input.strip()
-                        }
-                        st.success("✅ ¡Cambios guardados exitosamente!")
+                        required_fields = [
+                            dest_name_input, dest_address_input, d_nombre_input,
+                            d_placa_input, d_cedula_input, d_marca_input,
+                            d_celular_input, d_transp_input, elab_nombre_input
+                        ]
+                        if not all(field.strip() for field in required_fields):
+                            st.session_state[f"datos_guardados_{tab_key}"] = False
+                            st.error("❌ Todos los campos son obligatorios. Rellénalos todos para habilitar las descargas.")
+                        else:
+                            st.session_state[f"datos_guardados_{tab_key}"] = True
+                            st.session_state[f"saved_data_{tab_key}"] = {
+                                "dest_name": dest_name_input.strip(),
+                                "dest_address": dest_address_input.strip(),
+                                "d_nombre": d_nombre_input.strip(),
+                                "d_placa": d_placa_input.strip(),
+                                "d_cedula": d_cedula_input.strip(),
+                                "d_marca": d_marca_input.strip(),
+                                "d_celular": d_celular_input.strip(),
+                                "d_transp": d_transp_input.strip(),
+                                "elab_nombre": elab_nombre_input.strip()
+                            }
+                            st.success("✅ ¡Datos guardados correctamente! Ya puedes descargar los formatos oficiales abajo.")
 
-                saved = st.session_state[f"saved_data_{tab_key}"]
-                dest_info = {"nombre": saved["dest_name"], "direccion": saved["dest_address"]}
-                driver_info = {
-                    "nombre": saved["d_nombre"], "cedula": saved["d_cedula"], "celular": saved["d_celular"],
-                    "placa": saved["d_placa"], "marca": saved["d_marca"], "transportadora": saved["d_transp"]
-                }
-                elaborado_info = {"nombre": saved["elab_nombre"]}
+                if not st.session_state.get(f"datos_guardados_{tab_key}", False):
+                    st.warning("🔒 Descargas bloqueadas. Rellena todos los campos y presiona el botón **Guardar Cambios**.")
+                else:
+                    saved = st.session_state[f"saved_data_{tab_key}"]
+                    dest_info = {"nombre": saved["dest_name"], "direccion": saved["dest_address"]}
+                    driver_info = {
+                        "nombre": saved["d_nombre"], "cedula": saved["d_cedula"], "celular": saved["d_celular"],
+                        "placa": saved["d_placa"], "marca": saved["d_marca"], "transportadora": saved["d_transp"]
+                    }
+                    elaborado_info = {"nombre": saved["elab_nombre"]}
 
-                st.markdown("---")
-                st.markdown("### 📥 Exportar y Previsualizar Formato Oficial TUVACOL (GID-F-010)")
+                    st.markdown("---")
+                    st.markdown("### 📥 Exportar y Previsualizar Formato Oficial TUVACOL (GID-F-010)")
                 
-                excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info)
-                pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info)
+                    excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info)
+                    pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info)
 
-                with st.expander("👁️ Previsualizar Documento Generado (PDF)", expanded=False):
-                    base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-                    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600px" type="application/pdf"></iframe>'
-                    st.markdown(pdf_display, unsafe_allow_html=True)
+                    with st.expander("👁️ Previsualizar Documento Generado (PDF)", expanded=False):
+                        base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+                        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600px" type="application/pdf"></iframe>'
+                        st.markdown(pdf_display, unsafe_allow_html=True)
 
-                col_exp1, col_exp2 = st.columns(2)
-                with col_exp1:
-                    st.download_button(
+                    col_exp1, col_exp2 = st.columns(2)
+                    with col_exp1:
+                        st.download_button(
                         label="📊 Descargar Formato Oficial Excel (.xlsx)",
                         data=excel_bytes,
                         file_name=f"Relacion_Envio_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True, key=f"dl_excel_{tab_key}"
                     )
-                with col_exp2:
-                    st.download_button(
+                    with col_exp2:
+                        st.download_button(
                         label="🖨️ Descargar Formato Oficial PDF (Imprimible)",
                         data=pdf_bytes,
                         file_name=f"Relacion_Envio_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
