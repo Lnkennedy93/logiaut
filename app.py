@@ -111,6 +111,17 @@ def registrar_log(mensaje, tipo="INFO"):
 registrar_log("--- Sesión iniciada ---")
 
 # ---------------------------------------------------------
+# Detector de IP del cliente
+# ---------------------------------------------------------
+def get_client_ip():
+    try:
+        headers = getattr(getattr(st, "context", None), "headers", {})
+        ip = headers.get("X-Forwarded-For") or headers.get("X-Real-IP") or "127.0.0.1"
+        return ip.split(",")[0].strip()
+    except Exception:
+        return "127.0.0.1"
+
+# ---------------------------------------------------------
 # Conexión Inteligente Google Drive (Híbrida: Local/Nube)
 # ---------------------------------------------------------
 def get_google_creds():
@@ -226,6 +237,13 @@ def pantalla_login():
             if boton_login:
                 user_data = validar_en_supabase(correo, password)
                 if user_data:
+                    client_ip = get_client_ip()
+                    try:
+                        supabase.table("usuarios_licencias").update(
+                            {"current_ip": client_ip}
+                        ).eq("correo", user_data["correo"]).execute()
+                    except Exception as e:
+                        registrar_log(f"No se pudo registrar la IP de la sesión: {e}", "WARNING")
                     st.session_state.autenticado = True
                     st.session_state.usuario_actual = user_data["correo"]
                     st.session_state.empresa_actual = user_data["empresa"]
@@ -248,6 +266,22 @@ def pantalla_login():
 if not st.session_state.autenticado:
     pantalla_login()
     st.stop()
+else:
+    try:
+        current_client_ip = get_client_ip()
+        response_ip = supabase.table("usuarios_licencias").select("current_ip").eq(
+            "correo", st.session_state.usuario_actual
+        ).execute()
+        if response_ip.data:
+            stored_ip = response_ip.data[0].get("current_ip")
+            if stored_ip and stored_ip != current_client_ip:
+                st.session_state.autenticado = False
+                st.session_state.usuario_actual = None
+                st.session_state.empresa_actual = None
+                st.warning("⚠️ Tu sesión fue cerrada porque se inició sesión desde otro dispositivo o navegador.")
+                st.stop()
+    except Exception as e:
+        registrar_log(f"No se pudo validar la IP de la sesión: {e}", "WARNING")
 
 # ---------------------------------------------------------
 # Capa de Datos Inteligente (Patrón Clean Core - SAP BTP / Google)
@@ -1167,6 +1201,45 @@ def obtener_datos_entrega_source(num_entrega):
         if pdf_buffer: return extraer_tabla_materiales(pdf_buffer, nombre_doc=f"Entrega_{num_entrega}")
         return []
 
+def render_consulta_despacho(items):
+    if not items:
+        return
+
+    df_resumen = pd.DataFrame(items)
+    pesos_u = []
+    pesos_t = []
+    for _, row in df_resumen.iterrows():
+        item_match = get_product_data_from_source(str(row["Código"]).strip(), df_bd)
+        if item_match is not None:
+            peso_raw = str(item_match.get("Peso_KG", 0.0)).strip().replace(",", ".")
+            try:
+                peso_unitario = float(peso_raw)
+            except ValueError:
+                peso_unitario = 0.0
+        else:
+            peso_unitario = 0.0
+        cantidad = float(row["Cantidad"])
+        pesos_u.append(peso_unitario)
+        pesos_t.append(round(peso_unitario * cantidad, 2))
+
+    df_resumen["Peso Unit. (KG)"] = pesos_u
+    df_resumen["Peso Total (KG)"] = pesos_t
+    df_resumen["No."] = [str(index + 1) for index in range(len(df_resumen))]
+    df_resumen = df_resumen[[
+        "No.", "Entrega", "Código", "Descripción", "Cantidad",
+        "Peso Unit. (KG)", "Peso Total (KG)"
+    ]]
+
+    st.markdown("### 📋 Tabla Consolidada de Materiales (Consulta)")
+    st.dataframe(df_resumen, use_container_width=True)
+
+    total_kg = pd.to_numeric(df_resumen["Peso Total (KG)"], errors="coerce").sum()
+    total_docs = df_resumen["Entrega"].nunique()
+    m1, m2 = st.columns(2)
+    m1.metric("📄 Total Documentos", f"{total_docs}")
+    m2.metric("📦 Peso Total (KG)", f"{total_kg:,.2f} KG")
+    st.info("ℹ️ Esta pestaña es solo de consulta. Para generar el formato oficial, usa la pestaña **Relación de Envío**.")
+
 def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=True):
     if not lista_fuentes:
         return
@@ -1444,23 +1517,20 @@ with tab2:
 
     if modo_procesar == "Buscar por Número de Entrega (Google Drive)":
         num_entregas_input = st.text_input("Números de Entrega:", placeholder="Ej: 20005021, 3171")
+        todos_los_items = []
         encontrados = []
         no_encontrados = []
         if num_entregas_input.strip():
             for num in [n.strip() for n in re.split(r'[\s,]+', num_entregas_input) if n.strip()][:50]:
                 items = obtener_datos_entrega_source(num)
                 if items:
+                    todos_los_items.extend(items)
                     encontrados.append(num)
                 else:
                     no_encontrados.append(num)
             if encontrados: st.success(f"✅ Procesados: {', '.join(encontrados)}")
             if no_encontrados: st.error(f"❌ No encontrados: {', '.join(no_encontrados)}")
-        if encontrados:
-            render_procesamiento_despacho(
-                [(None, f"Entrega_{num}") for num in encontrados],
-                "tab2_drive",
-                mostrar_exportacion=True
-            )
+        render_consulta_despacho(todos_los_items)
     else:
         uploaded_files_tab2 = st.file_uploader(
             "Cargar PDFs de Remisión",
@@ -1468,13 +1538,15 @@ with tab2:
             accept_multiple_files=True,
             key="uploader_tab2_local"
         )
-        lista_fuentes_local = []
+        todos_los_items_locales = []
         if uploaded_files_tab2:
             for uploaded_file in uploaded_files_tab2:
                 match = re.search(r'\d+', uploaded_file.name)
                 tag = match.group(0) if match else uploaded_file.name
-                lista_fuentes_local.append((uploaded_file, f"Entrega_{tag}"))
-        render_procesamiento_despacho(lista_fuentes_local, "tab2_local", mostrar_exportacion=True)
+                todos_los_items_locales.extend(
+                    extraer_tabla_materiales(uploaded_file, nombre_doc=f"Entrega_{tag}")
+                )
+        render_consulta_despacho(todos_los_items_locales)
 
 with tab3:
     st.subheader("📤 Generador de Relación de Envio (Subir Archivos PDF)")
