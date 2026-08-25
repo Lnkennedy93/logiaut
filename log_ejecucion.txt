@@ -14138,3 +14138,6 @@ ConnectionResetError: [WinError 10054] Se ha forzado la interrupción de una con
 2026-08-13 23:08:06,851 [INFO] Iniciando sincronización completa desde Google Sheets: https://docs.google.com/spreadsheets/d/1aTlmA6JBldTX3zN-djDjWA5HEAExTPcdNhJsPJL9Kgo/export?format=xlsx
 2026-08-13 23:08:11,867 [INFO] Sincronización exitosa. Total: 6935 productos en 32 pestañas.
 2026-08-13 23:08:11,967 [INFO] --- Sesión iniciada ---
+2026-08-24 21:59:50 [INFO] --- Sesión iniciada ---
+2026-08-24 21:59:50 [INFO] Iniciando sincronización completa desde Google Sheets: https://docs.google.com/spreadsheets/d/1aTlmA6JBldTX3zN-djDjWA5HEAExTPcdNhJsPJL9Kgo/export?format=xlsx
+2026-08-24 21:59:57 [INFO] Sincronización exitosa. Total: 9851 productos en 49 pestañas.

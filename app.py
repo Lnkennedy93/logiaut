@@ -214,35 +214,50 @@ if not st.session_state.autenticado:
 # Capa de Datos Inteligente (Patrón Clean Core - SAP BTP / Google)
 # ---------------------------------------------------------
 def get_product_data_from_source(codigo_input, df_bd):
+    """
+    Capa de abstracción de datos con prioridad de coincidencia exacta
+    para evitar confusiones entre códigos alfanuméricos y numéricos.
+    """
     env_mode = st.session_state.get("env_mode", "DEV (Google)")
+    clean_input = str(codigo_input).strip().upper()
     
     if env_mode == "PROD (SAP)":
         registrar_log(f"[SAP BTP ODATA MOCK] Consumiendo API_PRODUCT_SRV para material: {codigo_input}", "INFO")
         
         if df_bd is not None:
-            match = df_bd[
-                (df_bd['Codigo'].astype(str).str.contains(codigo_input, case=False, na=False)) |
-                (df_bd['Descripcion'].astype(str).str.contains(codigo_input, case=False, na=False))
+            match_exact = df_bd[df_bd['Codigo'].astype(str).str.strip().str.upper() == clean_input]
+            if not match_exact.empty:
+                item_sap = match_exact.iloc[0].copy()
+                item_sap['Descripcion'] = f"[SAP S/4HANA] {item_sap['Descripcion']}"
+                return item_sap
+
+            match_parcial = df_bd[
+                (df_bd['Codigo'].astype(str).str.contains(clean_input, case=False, na=False)) |
+                (df_bd['Descripcion'].astype(str).str.contains(clean_input, case=False, na=False))
             ]
-            if not match.empty:
-                item_sap = match.iloc[0].copy()
+            if not match_parcial.empty:
+                item_sap = match_parcial.iloc[0].copy()
                 item_sap['Descripcion'] = f"[SAP S/4HANA] {item_sap['Descripcion']}"
                 return item_sap
                 
         return pd.Series({
-            "Codigo": codigo_input.strip().upper(), 
+            "Codigo": clean_input,
             "Descripcion": f"[SAP S/4HANA] MATERIAL NO ENCONTRADO EN MAESTRO ({codigo_input})", 
             "Peso_KG": 0.0
         })
             
     else:
         if df_bd is not None:
-            match = df_bd[
-                (df_bd['Codigo'].astype(str).str.contains(codigo_input, case=False, na=False)) |
-                (df_bd['Descripcion'].astype(str).str.contains(codigo_input, case=False, na=False))
+            match_exact = df_bd[df_bd['Codigo'].astype(str).str.strip().str.upper() == clean_input]
+            if not match_exact.empty:
+                return match_exact.iloc[0]
+
+            match_parcial = df_bd[
+                (df_bd['Codigo'].astype(str).str.contains(clean_input, case=False, na=False)) |
+                (df_bd['Descripcion'].astype(str).str.contains(clean_input, case=False, na=False))
             ]
-            if not match.empty:
-                return match.iloc[0]
+            if not match_parcial.empty:
+                return match_parcial.iloc[0]
         return None
 
 @st.cache_data(ttl=1800, show_spinner=False)
