@@ -20,7 +20,7 @@ from openpyxl.cell.text import InlineFont
 from google.oauth2 import service_account
 from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, Image as ReportLabImage
@@ -83,7 +83,8 @@ st.markdown(
 # ---------------------------------------------------------
 # Parámetros y Constantes
 # ---------------------------------------------------------
-GOOGLE_SHEET_XLSX_URL = "https://docs.google.com/spreadsheets/d/1aTlmA6JBldTX3zN-djDjWA5HEAExTPcdNhJsPJL9Kgo/export?format=xlsx"
+GOOGLE_SHEET_XLSX_URL = "https://docs.google.com/spreadsheets/d/1HatcJlMpdxk4Z92sFMjU_MPEwjqJT5oww171jPC2Gnw/export?format=xlsx"
+SPREADSHEET_ID = "1HatcJlMpdxk4Z92sFMjU_MPEwjqJT5oww171jPC2Gnw"
 DRIVE_FOLDER_ID = "1Amwy8_uQgo6X0VS2DXH028Ep80BMi4rP"
 CEDULA_DEV_CORRECTA = "1073513861"
 BD_LOCAL_PATH = "BD_Pesos.xlsx"
@@ -131,7 +132,10 @@ def get_client_ip():
 # Conexión Inteligente Google Drive (Híbrida: Local/Nube)
 # ---------------------------------------------------------
 def get_google_creds():
-    scope = ["https://www.googleapis.com/auth/drive"]
+    scope = [
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/spreadsheets"
+    ]
     if "google" in st.secrets:
         creds_dict = dict(st.secrets["google"])
         if "private_key" in creds_dict:
@@ -192,6 +196,80 @@ def descargar_pdf_desde_drive(folder_id, numero_entrega):
     except Exception as e:
         registrar_log(f"Error al descargar PDF de Drive para {numero_entrega}: {e}", "ERROR")
         return None
+
+def subir_pdf_a_drive(file_obj, file_name, folder_id):
+    try:
+        creds = get_google_creds()
+        if not creds:
+            return None
+        service = build("drive", "v3", credentials=creds)
+        if hasattr(file_obj, "seek"):
+            file_obj.seek(0)
+        media = MediaIoBaseUpload(
+            io.BytesIO(file_obj.read()),
+            mimetype="application/pdf",
+            resumable=True
+        )
+        metadata = {
+            "name": f"Copia_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_name}",
+            "parents": [folder_id]
+        }
+        uploaded = service.files().create(
+            body=metadata,
+            media_body=media,
+            fields="id, webViewLink",
+            supportsAllDrives=True
+        ).execute()
+        return uploaded.get("webViewLink") or f"https://drive.google.com/file/d/{uploaded['id']}/view"
+    except Exception as e:
+        registrar_log(f"Error al subir copia de PDF a Drive: {e}", "ERROR")
+        return None
+
+def obtener_siguiente_consecutivo():
+    try:
+        creds = get_google_creds()
+        if not creds:
+            raise RuntimeError("No hay credenciales de Google")
+        service = build("sheets", "v4", credentials=creds)
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range="Relacion_Envio!A:A"
+        ).execute()
+        numeros = []
+        for row in result.get("values", [])[1:]:
+            if row:
+                match = re.search(r"\d+", str(row[0]))
+                if match:
+                    numeros.append(int(match.group(0)))
+        return f"No.{(max(numeros) + 1 if numeros else 1):08d}"
+    except Exception as e:
+        registrar_log(f"Error al obtener consecutivo: {e}", "ERROR")
+        raise
+
+def registrar_relacion_en_sheets(consecutivo, fecha, dest_info, driver_info, elaborado_info, empaques_info, pdf_links):
+    creds = get_google_creds()
+    if not creds:
+        raise RuntimeError("No hay credenciales de Google")
+    service = build("sheets", "v4", credentials=creds)
+    empaques = ", ".join(
+        f"{nombre}: {empaques_info.get(nombre, 0)}"
+        for nombre in ["Guacales", "Estibas", "Cajas", "Paquetes", "Sobres", "Tubos"]
+    )
+    row_data = [
+        consecutivo, fecha, "LOGÍSTICA SEDE FUNZA.",
+        dest_info.get("nombre", ""), dest_info.get("direccion", ""),
+        driver_info.get("nombre", ""), driver_info.get("cedula", ""),
+        driver_info.get("celular", ""), driver_info.get("placa", ""),
+        driver_info.get("marca", ""), driver_info.get("transportadora", ""),
+        elaborado_info.get("nombre", ""), empaques,
+        ", ".join(pdf_links) if pdf_links else "Ninguno", "ACTIVO"
+    ]
+    service.spreadsheets().values().append(
+        spreadsheetId=SPREADSHEET_ID,
+        range="Relacion_Envio!A:O",
+        valueInputOption="USER_ENTERED",
+        body={"values": [row_data]}
+    ).execute()
 
 # ---------------------------------------------------------
 # Conexión a Supabase (Autenticación y Licencias)
@@ -466,7 +544,7 @@ def cargar_bd_local(ruta_archivo):
 # ---------------------------------------------------------
 # Generadores Excel y PDF (GID-F-010)
 # ---------------------------------------------------------
-def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None):
+def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None, consecutivo="No.00000000"):
     if driver_info is None: driver_info = {}
     if dest_info is None: dest_info = {}
     if elaborado_info is None: elaborado_info = {}
@@ -548,8 +626,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
     ws["C7"].font = font_arial_bold_10
     ws["C7"].alignment = Alignment(horizontal="center")
 
-    num_relacion = f"No.{datetime.datetime.now().strftime('%m%d%H')}"
-    ws["E7"] = num_relacion
+    ws["E7"] = consecutivo
     ws["E7"].font = font_arial_bold_11
     ws["E7"].alignment = Alignment(horizontal="center")
 
@@ -774,7 +851,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
     return output.getvalue()
 
 
-def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None):
+def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None, consecutivo="No.00000000"):
     if driver_info is None: driver_info = {}
     if dest_info is None: dest_info = {}
     if elaborado_info is None: elaborado_info = {}
@@ -811,7 +888,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         [
             sgi_cell,
             Paragraph("<b>RELACION DE ENVIO DE MERCANCIAS</b>", brand_title_style),
-            Paragraph("Versión: 05<br/>Vigente desde: 12-02-2021<br/><b>Codigo: GID-F-010</b><br/>Elaborado por: Comité SGI", normal_style)
+            Paragraph(f"Versión: 05<br/><b>{consecutivo}</b><br/>Codigo: GID-F-010<br/>Elaborado por: Comité SGI", normal_style)
         ]
     ]
     t_header = Table(h_data, colWidths=[150, 270, 150])
@@ -1390,7 +1467,42 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                             st.session_state[f"datos_guardados_{tab_key}"] = False
                             st.error("❌ Debes indicar la cantidad de al menos un tipo de empaque. La suma total no puede ser 0.")
                         else:
+                            dest_info_temp = {"nombre": dest_name_input.strip(), "direccion": dest_address_input.strip()}
+                            driver_info_temp = {
+                                "nombre": d_nombre_input.strip(), "cedula": d_cedula_input.strip(),
+                                "celular": d_celular_input.strip(), "placa": d_placa_input.strip(),
+                                "marca": d_marca_input.strip(), "transportadora": d_transp_input.strip()
+                            }
+                            elaborado_info_temp = {"nombre": elab_nombre_input.strip()}
+                            empaques_info_temp = {
+                                "Guacales": guacales, "Estibas": estibas, "Cajas": cajas,
+                                "Paquetes": paquetes, "Sobres": sobres, "Tubos": tubos
+                            }
+                            try:
+                                consecutivo_generado = obtener_siguiente_consecutivo()
+                                pdf_links = []
+                                for file_obj, _ in lista_fuentes:
+                                    if file_obj is not None and hasattr(file_obj, "read"):
+                                        link = subir_pdf_a_drive(file_obj, file_obj.name, DRIVE_FOLDER_ID)
+                                        if link:
+                                            pdf_links.append(link)
+                                registrar_relacion_en_sheets(
+                                    consecutivo_generado,
+                                    datetime.datetime.now().strftime("%d-%m-%Y"),
+                                    dest_info_temp,
+                                    driver_info_temp,
+                                    elaborado_info_temp,
+                                    empaques_info_temp,
+                                    pdf_links
+                                )
+                            except Exception as e:
+                                st.session_state[f"datos_guardados_{tab_key}"] = False
+                                st.error(f"❌ No se pudo registrar la relación en Google: {e}")
+                                registrar_log(f"No se pudo guardar la relación {tab_key}: {e}", "ERROR")
+                                return
+
                             st.session_state[f"datos_guardados_{tab_key}"] = True
+                            st.session_state[f"current_consecutivo_{tab_key}"] = consecutivo_generado
                             st.session_state[f"saved_data_{tab_key}"] = {
                                 "dest_name": dest_name_input.strip(),
                                 "dest_address": dest_address_input.strip(),
@@ -1402,17 +1514,15 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                                 "d_transp": d_transp_input.strip(),
                                 "elab_nombre": elab_nombre_input.strip()
                             }
-                            st.session_state[f"saved_empaques_{tab_key}"] = {
-                                "Guacales": guacales, "Estibas": estibas, "Cajas": cajas,
-                                "Paquetes": paquetes, "Sobres": sobres, "Tubos": tubos
-                            }
-                            st.success("✅ ¡Datos guardados correctamente! Ya puedes descargar los formatos oficiales abajo.")
+                            st.session_state[f"saved_empaques_{tab_key}"] = empaques_info_temp
+                            st.success(f"✅ ¡Datos guardados! Consecutivo asignado: **{consecutivo_generado}**.")
 
                 if not st.session_state.get(f"datos_guardados_{tab_key}", False):
                     st.warning("🔒 Descargas bloqueadas. Completa los campos e indica al menos un empaque con cantidad mayor a 0.")
                 else:
                     saved = st.session_state[f"saved_data_{tab_key}"]
                     saved_emp = st.session_state.get(f"saved_empaques_{tab_key}", {})
+                    current_consecutivo = st.session_state.get(f"current_consecutivo_{tab_key}", "No.00000000")
                     dest_info = {"nombre": saved["dest_name"], "direccion": saved["dest_address"]}
                     driver_info = {
                         "nombre": saved["d_nombre"], "cedula": saved["d_cedula"], "celular": saved["d_celular"],
@@ -1421,10 +1531,10 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     elaborado_info = {"nombre": saved["elab_nombre"]}
 
                     st.markdown("---")
-                    st.markdown("### 📥 Exportar y Previsualizar Formato Oficial TUVACOL (GID-F-010)")
+                    st.markdown(f"### 📥 Exportar y Previsualizar Formato Oficial TUVACOL ({current_consecutivo})")
                 
-                    excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, saved_emp)
-                    pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, saved_emp)
+                    excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, saved_emp, current_consecutivo)
+                    pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, saved_emp, current_consecutivo)
 
                     with st.expander("👁️ Previsualizar Documento Generado (PDF)", expanded=False):
                         base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
