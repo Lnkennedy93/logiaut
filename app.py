@@ -93,7 +93,7 @@ MASTER_CSV_PATH = "registro_entregas.csv"
 LOGO_PATH = "logo.png" if os.path.exists("logo.png") else ("download.png" if os.path.exists("download.png") else None)
 
 # --- Logging ---
-LOG_FILENAME = "log_ejecucion.txt"
+LOG_FILENAME = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log_ejecucion.txt")
 
 logging.basicConfig(
     filename=LOG_FILENAME,

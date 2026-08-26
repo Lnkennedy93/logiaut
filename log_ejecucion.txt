@@ -14206,3 +14206,4 @@ ConnectionResetError: [WinError 10054] Se ha forzado la interrupción de una con
 2026-08-25 21:39:18 [INFO] Sincronización exitosa. Total: 9703 productos en 45 pestañas.
 2026-08-25 21:46:44 [INFO] --- Sesión iniciada ---
 2026-08-25 21:46:44 [ERROR] No se encontró la base local de pesos: BD_Pesos.xlsx
+Prueba de escritura inmediata con ruta absoluta
