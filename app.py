@@ -486,6 +486,10 @@ def fetch_google_sheet_database(custom_url=None):
                 df_h = df_h[cols_deseadas].dropna(subset=['Codigo'])
                 df_h['PESTAÑA_BD'] = nombre_hoja
                 list_dfs.append(df_h)
+            elif 'Codigo' in cols_deseadas:
+                registrar_log(f"La pestaña {nombre_hoja} no tiene columna de peso; se omite.", "WARNING")
+            else:
+                registrar_log(f"La pestaña {nombre_hoja} no tiene columna de código; se omite.", "WARNING")
 
         if list_dfs:
             df_final = pd.concat(list_dfs, ignore_index=True)
