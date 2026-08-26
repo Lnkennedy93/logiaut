@@ -15,7 +15,6 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.drawing.image import Image as OpenpyxlImage
 from google.oauth2 import service_account
-from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from reportlab.lib.pagesizes import letter
@@ -137,9 +136,22 @@ def get_google_creds():
         creds_dict = dict(st.secrets["google"])
         if "private_key" in creds_dict:
             creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-        return service_account.Credentials.from_service_account_info(creds_dict, scopes=scope)
+        try:
+            return service_account.Credentials.from_service_account_info(creds_dict, scopes=scope)
+        except (ValueError, KeyError) as error:
+            registrar_log(
+                f"La clave de Google en st.secrets no es válida: {error}. "
+                "Se intentará credentials.json.",
+                "WARNING"
+            )
     elif os.path.exists('credentials.json'):
-        return ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+        return service_account.Credentials.from_service_account_file(
+            'credentials.json', scopes=scope
+        )
+    if os.path.exists('credentials.json'):
+        return service_account.Credentials.from_service_account_file(
+            'credentials.json', scopes=scope
+        )
     return None
 
 def descargar_pdf_desde_drive(folder_id, numero_entrega):
