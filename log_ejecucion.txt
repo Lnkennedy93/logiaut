@@ -14144,3 +14144,8 @@ ConnectionResetError: [WinError 10054] Se ha forzado la interrupción de una con
 2026-08-24 22:09:40 [INFO] --- Sesión iniciada ---
 2026-08-24 22:09:41 [INFO] Iniciando sincronización completa desde Google Sheets: https://docs.google.com/spreadsheets/d/1aTlmA6JBldTX3zN-djDjWA5HEAExTPcdNhJsPJL9Kgo/export?format=xlsx
 2026-08-24 22:09:47 [INFO] Sincronización exitosa. Total: 9851 productos en 49 pestañas.
+2026-08-25 21:29:46 [INFO] --- Sesión iniciada ---
+2026-08-25 21:29:47 [INFO] file_cache is only supported with oauth2client<4.0.0
+2026-08-25 21:29:47 [INFO] Attempting refresh to obtain initial access_token
+2026-08-25 21:29:47 [INFO] Refreshing access_token
+2026-08-25 21:29:50 [ERROR] Error cargando Google Sheet de productos via API: 5 columns passed, passed data had 26 columns

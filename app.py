@@ -458,38 +458,48 @@ def fetch_google_sheet_database(custom_url=None):
             nombre_hoja = sheet.get("properties", {}).get("title")
             if not nombre_hoja:
                 continue
-            response = service.spreadsheets().values().get(
-                spreadsheetId=PRODUCT_SPREADSHEET_ID,
-                range=f"'{nombre_hoja}'!A1:Z5000"
-            ).execute()
-            rows = response.get("values", [])
-            if not rows:
+            try:
+                response = service.spreadsheets().values().get(
+                    spreadsheetId=PRODUCT_SPREADSHEET_ID,
+                    range=f"'{nombre_hoja}'!A1:Z5000"
+                ).execute()
+                rows = response.get("values", [])
+                if not rows:
+                    registrar_log(f"La pestaña {nombre_hoja} está vacía; se omite.", "WARNING")
+                    continue
+
+                header_row = [str(value).strip() for value in rows[0]]
+                normalized_headers = {
+                    header.casefold(): header for header in header_row
+                }
+                codigo_col = normalized_headers.get("codigo") or normalized_headers.get("código")
+                descripcion_col = normalized_headers.get("descripcion") or normalized_headers.get("descripción")
+                peso_col = normalized_headers.get("peso_kg")
+
+                if not codigo_col or not peso_col:
+                    registrar_log(
+                        f"La pestaña {nombre_hoja} no tiene encabezados requeridos "
+                        f"(#, codigo, Descripcion, Unidad, Peso_KG); se omite.",
+                        "WARNING"
+                    )
+                    continue
+
+                data_rows = [
+                    row + [None] * (len(header_row) - len(row))
+                    for row in rows[1:]
+                ]
+                df_h = pd.DataFrame(data_rows, columns=header_row)
+                temp_df = pd.DataFrame({
+                    "Codigo": df_h[codigo_col],
+                    "Descripcion": df_h[descripcion_col] if descripcion_col else "Sin descripción",
+                    "Peso_KG": df_h[peso_col]
+                }).dropna(subset=["Codigo"])
+                temp_df["PESTAÑA_BD"] = nombre_hoja
+                list_dfs.append(temp_df)
+                registrar_log(f"Pestaña '{nombre_hoja}' leída ({len(temp_df)} filas).", "INFO")
+            except Exception as sheet_err:
+                registrar_log(f"Advertencia leyendo pestaña {nombre_hoja}: {sheet_err}", "WARNING")
                 continue
-
-            df_h = pd.DataFrame(rows[1:], columns=rows[0])
-            df_h.columns = df_h.columns.astype(str).str.strip()
-
-            renames = {}
-            for col in df_h.columns:
-                c_low = col.lower()
-                if any(k in c_low for k in ['código', 'codigo', 'artículo', 'articulo', 'número', 'numero', 'material']) and 'Codigo' not in renames.values():
-                    renames[col] = 'Codigo'
-                elif 'desc' in c_low and 'Descripcion' not in renames.values():
-                    renames[col] = 'Descripcion'
-                elif any(k in c_low for k in ['peso', 'kg', 'kilos', 'gramos']) and 'Peso_KG' not in renames.values():
-                    renames[col] = 'Peso_KG'
-
-            df_h = df_h.rename(columns=renames)
-            cols_deseadas = [c for c in ['Codigo', 'Descripcion', 'Peso_KG'] if c in df_h.columns]
-            
-            if 'Codigo' in cols_deseadas and 'Peso_KG' in cols_deseadas:
-                df_h = df_h[cols_deseadas].dropna(subset=['Codigo'])
-                df_h['PESTAÑA_BD'] = nombre_hoja
-                list_dfs.append(df_h)
-            elif 'Codigo' in cols_deseadas:
-                registrar_log(f"La pestaña {nombre_hoja} no tiene columna de peso; se omite.", "WARNING")
-            else:
-                registrar_log(f"La pestaña {nombre_hoja} no tiene columna de código; se omite.", "WARNING")
 
         if list_dfs:
             df_final = pd.concat(list_dfs, ignore_index=True)
