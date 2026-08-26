@@ -8,8 +8,6 @@ import re
 import os
 import io
 import base64
-import csv
-import requests
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -76,11 +74,6 @@ st.markdown("""
 # ---------------------------------------------------------
 DRIVE_FOLDER_ID = "1Amwy8_uQgo6X0VS2DXH028Ep80BMi4rP"
 GOOGLE_SHEET_ID = "1aTlmA6JBldTX3zN-djDjWA5HEAExTPcdNhJsPJL9Kgo"
-GOOGLE_SHEET_GID = "1928951055"
-GOOGLE_SHEET_CSV_URL = (
-    f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export"
-    f"?format=csv&gid={GOOGLE_SHEET_GID}"
-)
 CEDULA_DEV_CORRECTA = "1073513861"
 BD_LOCAL_PATH = "BD_Pesos.xlsx"
 MASTER_CSV_PATH = "registro_entregas.csv"
@@ -297,9 +290,8 @@ def get_product_data_from_source(codigo_input, df_bd):
             if not match_parcial.empty: return match_parcial.iloc[0]
         return None
 
-def parse_google_sheet_csv(csv_text):
-    """Convierte la pestaña CSV en el esquema de productos de la aplicación."""
-    rows = list(csv.reader(io.StringIO(csv_text)))
+def parse_google_sheet_rows(rows):
+    """Convierte las filas de una pestaña en el esquema de productos."""
     if len(rows) < 2:
         return None
 
@@ -364,10 +356,7 @@ def fetch_google_sheet_database_api():
     if not sheets:
         return None
 
-    ranges = [
-        f"'{sheet['title'].replace(chr(39), chr(39) * 2)}'!A:Z"
-        for sheet in sheets
-    ]
+    ranges = [f"'{sheet['title'].replace(chr(39), chr(39) * 2)}'!A:Z" for sheet in sheets]
     result = service.spreadsheets().values().batchGet(
         spreadsheetId=GOOGLE_SHEET_ID,
         ranges=ranges,
@@ -380,9 +369,7 @@ def fetch_google_sheet_database_api():
         if len(rows) < 2:
             continue
 
-        csv_buffer = io.StringIO()
-        csv.writer(csv_buffer).writerows(rows)
-        df_sheet = parse_google_sheet_csv(csv_buffer.getvalue())
+        df_sheet = parse_google_sheet_rows(rows)
         if df_sheet is not None and not df_sheet.empty:
             df_sheet["PESTAÑA_BD"] = sheet["title"]
             data_frames.append(df_sheet)
@@ -409,24 +396,12 @@ def fetch_google_sheet_database():
         df_google = fetch_google_sheet_database_api()
         if df_google is not None and not df_google.empty:
             return df_google
-        registrar_log("Google Sheets no contiene filas válidas; probando CSV.", "WARNING")
+        registrar_log("Google Sheets no contiene filas válidas; usando base local.", "WARNING")
     except Exception as error:
         registrar_log(
             f"Error leyendo todas las pestañas por API: {error}.",
             "WARNING"
         )
-
-    try:
-        response = requests.get(GOOGLE_SHEET_CSV_URL, timeout=20)
-        response.raise_for_status()
-        df_google = parse_google_sheet_csv(response.text)
-        if df_google is not None and not df_google.empty:
-            registrar_log(
-                f"CSV de Google Sheets sincronizado: {len(df_google)} productos."
-            )
-            return df_google
-    except Exception as error:
-        registrar_log(f"CSV de Google Sheets no disponible: {error}.", "WARNING")
 
     registrar_log("Usando base local de productos como respaldo.", "WARNING")
     return cargar_bd_local(BD_LOCAL_PATH)
