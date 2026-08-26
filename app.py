@@ -100,16 +100,20 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    encoding="utf-8"
+    encoding="utf-8",
+    force=True
 )
 
 def registrar_log(mensaje, tipo="INFO"):
+    print(f"[{tipo}] {mensaje}")
     if tipo == "INFO":
         logging.info(mensaje)
     elif tipo == "WARNING":
         logging.warning(mensaje)
     elif tipo == "ERROR":
         logging.error(mensaje)
+    for handler in logging.root.handlers:
+        handler.flush()
 
 registrar_log("--- Sesión iniciada ---")
 
