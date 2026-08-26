@@ -138,7 +138,7 @@ def get_google_creds():
             creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
         try:
             return service_account.Credentials.from_service_account_info(creds_dict, scopes=scope)
-        except (ValueError, KeyError) as error:
+        except Exception as error:
             registrar_log(
                 f"La clave de Google en st.secrets no es válida: {error}. "
                 "Se intentará credentials.json.",
