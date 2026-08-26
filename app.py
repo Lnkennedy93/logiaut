@@ -8,6 +8,8 @@ import re
 import os
 import io
 import base64
+import csv
+import requests
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -74,6 +76,12 @@ st.markdown("""
 # Parámetros y Constantes
 # ---------------------------------------------------------
 DRIVE_FOLDER_ID = "1Amwy8_uQgo6X0VS2DXH028Ep80BMi4rP"
+GOOGLE_SHEET_ID = "1aTlmA6JBldTX3zN-djDjWA5HEAExTPcdNhJsPJL9Kgo"
+GOOGLE_SHEET_GID = "1928951055"
+GOOGLE_SHEET_CSV_URL = (
+    f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export"
+    f"?format=csv&gid={GOOGLE_SHEET_GID}"
+)
 CEDULA_DEV_CORRECTA = "1073513861"
 BD_LOCAL_PATH = "BD_Pesos.xlsx"
 MASTER_CSV_PATH = "registro_entregas.csv"
@@ -121,7 +129,10 @@ def get_client_ip():
 # Conexión Google Drive
 # ---------------------------------------------------------
 def get_google_creds():
-    scope = ["https://www.googleapis.com/auth/drive"]
+    scope = [
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/spreadsheets.readonly",
+    ]
     if "google" in st.secrets:
         creds_dict = dict(st.secrets["google"])
         if "private_key" in creds_dict:
@@ -273,6 +284,128 @@ def get_product_data_from_source(codigo_input, df_bd):
             match_parcial = df_bd[df_bd['Codigo'].astype(str).str.contains(clean_input, case=False, na=False)]
             if not match_parcial.empty: return match_parcial.iloc[0]
         return None
+
+def parse_google_sheet_csv(csv_text):
+    """Convierte la pestaña CSV en el esquema de productos de la aplicación."""
+    rows = list(csv.reader(io.StringIO(csv_text)))
+    if len(rows) < 2:
+        return None
+
+    headers = [str(value).strip().upper().replace('"', '') for value in rows[0]]
+
+    def find_column(*terms):
+        return next((index for index, header in enumerate(headers)
+                     if any(term in header for term in terms)), None)
+
+    code_idx = find_column("CODIGO", "CÓDIGO", "MATERIAL", "SAP")
+    desc_idx = find_column("DESC", "DESCRIPCION", "DESCRIPCIÓN", "PRODUCTO", "NOMBRE")
+    peso_idx = find_column("PESO", "KG", "KILOS", "UNIT")
+    if code_idx is None:
+        code_idx = 0
+    if desc_idx is None:
+        desc_idx = 1
+    if peso_idx is None:
+        peso_idx = 2
+
+    products = []
+    for row in rows[1:]:
+        if not row:
+            continue
+
+        def value_at(index):
+            return str(row[index]).strip() if index < len(row) else ""
+
+        clean_code = re.sub(r"\.0$", "", value_at(code_idx))
+        description = value_at(desc_idx)
+        raw_weight = re.sub(r"[^\d.,-]", "", value_at(peso_idx))
+        if "," in raw_weight and "." in raw_weight:
+            raw_weight = raw_weight.replace(".", "").replace(",", ".")
+        else:
+            raw_weight = raw_weight.replace(",", ".")
+
+        try:
+            weight = float(raw_weight) if raw_weight else 0.0
+        except ValueError:
+            weight = 0.0
+
+        if clean_code and description:
+            products.append({
+                "Codigo": clean_code,
+                "Descripcion": description,
+                "Peso_KG": weight,
+            })
+
+    return pd.DataFrame(products) if products else None
+
+def fetch_google_sheet_database_api():
+    """Lee la pestaña por API cuando el CSV público requiere autenticación."""
+    creds = get_google_creds()
+    if not creds:
+        return None
+
+    service = build("sheets", "v4", credentials=creds)
+    metadata = service.spreadsheets().get(spreadsheetId=GOOGLE_SHEET_ID).execute()
+    target_sheet = next(
+        (
+            sheet["properties"]
+            for sheet in metadata.get("sheets", [])
+            if str(sheet.get("properties", {}).get("sheetId")) == GOOGLE_SHEET_GID
+        ),
+        None,
+    )
+    if not target_sheet:
+        raise RuntimeError(f"No se encontró la pestaña con GID {GOOGLE_SHEET_GID}")
+
+    title = target_sheet["title"].replace("'", "''")
+    result = service.spreadsheets().values().get(
+        spreadsheetId=GOOGLE_SHEET_ID,
+        range=f"'{title}'!A:Z",
+    ).execute()
+    rows = result.get("values", [])
+    if len(rows) < 2:
+        return None
+
+    csv_buffer = io.StringIO()
+    csv.writer(csv_buffer).writerows(rows)
+    return parse_google_sheet_csv(csv_buffer.getvalue())
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_google_sheet_database():
+    """Descarga la base publicada y conserva Excel como respaldo local."""
+    try:
+        registrar_log(
+            f"Conectando con Google Sheets ({GOOGLE_SHEET_ID} | GID: {GOOGLE_SHEET_GID})..."
+        )
+        response = requests.get(GOOGLE_SHEET_CSV_URL, timeout=20)
+        response.raise_for_status()
+        df_google = parse_google_sheet_csv(response.text)
+        if df_google is not None and not df_google.empty:
+            registrar_log(
+                f"Google Sheets sincronizado: {len(df_google)} productos obtenidos."
+            )
+            return df_google
+        registrar_log("Google Sheets no contiene filas válidas; usando base local.", "WARNING")
+    except Exception as error:
+        registrar_log(
+            f"CSV de Google Sheets no disponible: {error}.",
+            "WARNING"
+        )
+
+        try:
+            df_google = fetch_google_sheet_database_api()
+            if df_google is not None and not df_google.empty:
+                registrar_log(
+                    f"Google Sheets sincronizado mediante API: {len(df_google)} productos."
+                )
+                return df_google
+        except Exception as api_error:
+            registrar_log(
+                f"Error leyendo Google Sheets mediante API: {api_error}.",
+                "WARNING"
+            )
+
+    registrar_log("Usando base local de productos como respaldo.", "WARNING")
+    return cargar_bd_local(BD_LOCAL_PATH)
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def cargar_bd_local(ruta_archivo):
@@ -756,9 +889,9 @@ if modo_app == "Modo Destroller":
 if es_dev_autenticado:
     env_mode = st.sidebar.radio("Modo Conexión de Datos:", ["DEV (Google)", "PROD (SAP)"], key="env_mode")
 
-# Carga de Base de Datos local instantánea
-with st.spinner("🔄 Cargando base de datos de pesos..."):
-    df_bd = cargar_bd_local(BD_LOCAL_PATH)
+# Sincronización en vivo con respaldo local
+with st.spinner("🔄 Sincronizando base de datos de pesos..."):
+    df_bd = fetch_google_sheet_database()
 
 if st.sidebar.button("🔄 Sincronizar Datos"):
     st.cache_data.clear()
