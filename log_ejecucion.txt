@@ -14149,3 +14149,60 @@ ConnectionResetError: [WinError 10054] Se ha forzado la interrupción de una con
 2026-08-25 21:29:47 [INFO] Attempting refresh to obtain initial access_token
 2026-08-25 21:29:47 [INFO] Refreshing access_token
 2026-08-25 21:29:50 [ERROR] Error cargando Google Sheet de productos via API: 5 columns passed, passed data had 26 columns
+2026-08-25 21:38:53 [INFO] --- Sesión iniciada ---
+2026-08-25 21:38:54 [INFO] file_cache is only supported with oauth2client<4.0.0
+2026-08-25 21:38:54 [INFO] Attempting refresh to obtain initial access_token
+2026-08-25 21:38:54 [INFO] Refreshing access_token
+2026-08-25 21:38:56 [WARNING] Advertencia leyendo pestaña COD_90: 5 columns passed, passed data had 26 columns
+2026-08-25 21:38:57 [INFO] Pestaña 'COD_P' leída (1190 filas).
+2026-08-25 21:38:58 [INFO] Pestaña 'VAL_46' leída (338 filas).
+2026-08-25 21:38:58 [INFO] Pestaña 'VAL_47' leída (299 filas).
+2026-08-25 21:38:58 [INFO] Pestaña 'VAL_48' leída (253 filas).
+2026-08-25 21:38:59 [INFO] Pestaña 'VAL_54' leída (174 filas).
+2026-08-25 21:38:59 [INFO] Pestaña 'VAL_62' leída (330 filas).
+2026-08-25 21:38:59 [INFO] Pestaña 'ACC_RANURADO' leída (797 filas).
+2026-08-25 21:39:00 [INFO] Pestaña 'ACC_PVC_100' leída (1600 filas).
+2026-08-25 21:39:00 [INFO] Pestaña 'EMP_120' leída (226 filas).
+2026-08-25 21:39:00 [INFO] Pestaña 'SANI_1045' leída (144 filas).
+2026-08-25 21:39:01 [INFO] Pestaña 'SANI_1046' leída (142 filas).
+2026-08-25 21:39:02 [INFO] Pestaña 'SANI_1047' leída (51 filas).
+2026-08-25 21:39:02 [INFO] Pestaña 'SANI_1048' leída (53 filas).
+2026-08-25 21:39:03 [INFO] Pestaña 'COD_ACC_1049' leída (168 filas).
+2026-08-25 21:39:03 [WARNING] Advertencia leyendo pestaña COD_ACC_1050: 5 columns passed, passed data had 26 columns
+2026-08-25 21:39:03 [WARNING] Advertencia leyendo pestaña COD_ACC_1051: 5 columns passed, passed data had 26 columns
+2026-08-25 21:39:03 [WARNING] Advertencia leyendo pestaña COD_ACC_1052: 5 columns passed, passed data had 26 columns
+2026-08-25 21:39:04 [INFO] Pestaña 'COD_ACC_1053' leída (16 filas).
+2026-08-25 21:39:04 [INFO] Pestaña 'COD_ACC_1054' leída (112 filas).
+2026-08-25 21:39:05 [INFO] Pestaña 'COD_ACC_1055' leída (285 filas).
+2026-08-25 21:39:05 [INFO] Pestaña 'COD_ACC_1056' leída (136 filas).
+2026-08-25 21:39:06 [INFO] Pestaña 'COD_ACC_1057' leída (51 filas).
+2026-08-25 21:39:06 [INFO] Pestaña 'COD_ACC_1058' leída (41 filas).
+2026-08-25 21:39:07 [INFO] Pestaña 'COD_ACC_1059' leída (9 filas).
+2026-08-25 21:39:07 [INFO] Pestaña 'ACC_AC_10600' leída (268 filas).
+2026-08-25 21:39:07 [INFO] Pestaña 'ACC_AC_1061' leída (51 filas).
+2026-08-25 21:39:08 [INFO] Pestaña 'ACC_AC_1062' leída (260 filas).
+2026-08-25 21:39:08 [INFO] Pestaña 'ACC_AC_1065' leída (191 filas).
+2026-08-25 21:39:08 [INFO] Pestaña 'ACC_AC_10700' leída (136 filas).
+2026-08-25 21:39:09 [INFO] Pestaña 'ACC_AC_1072' leída (118 filas).
+2026-08-25 21:39:09 [INFO] Pestaña 'ACC_AC_1071' leída (49 filas).
+2026-08-25 21:39:10 [INFO] Pestaña 'ACC_AC_1073' leída (32 filas).
+2026-08-25 21:39:10 [INFO] Pestaña 'ACC_AC_1074' leída (85 filas).
+2026-08-25 21:39:11 [INFO] Pestaña 'ACC_AC_1075' leída (91 filas).
+2026-08-25 21:39:11 [INFO] Pestaña 'ACC_AC_1076' leída (5 filas).
+2026-08-25 21:39:12 [WARNING] Advertencia leyendo pestaña ACC_AC_1080: 5 columns passed, passed data had 10 columns
+2026-08-25 21:39:12 [INFO] Pestaña 'ACC_AC_1090' leída (114 filas).
+2026-08-25 21:39:13 [INFO] Pestaña 'ACC_GALV_1092' leída (317 filas).
+2026-08-25 21:39:13 [INFO] Pestaña 'ACC_COBRE_1095' leída (145 filas).
+2026-08-25 21:39:13 [INFO] Pestaña 'TUB_COD_44' leída (96 filas).
+2026-08-25 21:39:14 [INFO] Pestaña 'TUB_AC_4520' leída (110 filas).
+2026-08-25 21:39:14 [INFO] Pestaña 'TUB_AC_4521' leída (159 filas).
+2026-08-25 21:39:15 [INFO] Pestaña 'TUB_AC_4522' leída (105 filas).
+2026-08-25 21:39:16 [INFO] Pestaña 'TUB_AC_4523' leída (75 filas).
+2026-08-25 21:39:17 [INFO] Pestaña 'TUB_AC_4524' leída (83 filas).
+2026-08-25 21:39:17 [INFO] Pestaña 'TUB_AC_4525' leída (57 filas).
+2026-08-25 21:39:18 [INFO] Pestaña 'TUB_AC_4526' leída (14 filas).
+2026-08-25 21:39:18 [INFO] Pestaña 'TUB_AC_4532' leída (77 filas).
+2026-08-25 21:39:18 [INFO] Pestaña 'BIRDAS_15' leída (650 filas).
+2026-08-25 21:39:18 [INFO] Sincronización exitosa. Total: 9703 productos en 45 pestañas.
+2026-08-25 21:46:44 [INFO] --- Sesión iniciada ---
+2026-08-25 21:46:44 [ERROR] No se encontró la base local de pesos: BD_Pesos.xlsx

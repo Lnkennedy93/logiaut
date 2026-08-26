@@ -523,6 +523,7 @@ def fetch_google_sheet_database(custom_url=None):
 @st.cache_data(ttl=3600, show_spinner=False)
 def cargar_bd_local(ruta_archivo):
     if not os.path.exists(ruta_archivo):
+        registrar_log(f"No se encontró la base local de pesos: {ruta_archivo}", "ERROR")
         return None
     try:
         hojas_dict = pd.read_excel(ruta_archivo, sheet_name=None, engine='openpyxl')
@@ -1602,10 +1603,13 @@ if modo_app == "Modo Destroller":
 if es_dev_autenticado:
     env_mode = st.sidebar.radio("Modo Conexión de Datos:", ["DEV (Google)", "PROD (SAP)"], key="env_mode")
 
-df_bd = fetch_google_sheet_database()
-if df_bd is None: df_bd = cargar_bd_local(BD_LOCAL_PATH)
+with st.spinner("🔄 Sincronizando base de datos de productos desde Google Sheets..."):
+    df_bd = fetch_google_sheet_database()
 
-if st.sidebar.button("🔄 Sincronizar Google Sheets Oficial"):
+if df_bd is None or df_bd.empty:
+    st.error("No se pudo cargar la base de productos desde Google Sheets. Revisa la pestaña Logs del Modo Destroller.")
+
+if st.sidebar.button("🔄 Sincronizar Google Sheets"):
     st.cache_data.clear()
     st.rerun()
 
