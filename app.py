@@ -338,71 +338,83 @@ def parse_google_sheet_csv(csv_text):
     return pd.DataFrame(products) if products else None
 
 def fetch_google_sheet_database_api():
-    """Lee la pestaña por API cuando el CSV público requiere autenticación."""
+    """Lee y unifica todas las pestañas del catálogo mediante la API."""
     creds = get_google_creds()
     if not creds:
         return None
 
     service = build("sheets", "v4", credentials=creds)
-    metadata = service.spreadsheets().get(spreadsheetId=GOOGLE_SHEET_ID).execute()
-    target_sheet = next(
-        (
-            sheet["properties"]
-            for sheet in metadata.get("sheets", [])
-            if str(sheet.get("properties", {}).get("sheetId")) == GOOGLE_SHEET_GID
-        ),
-        None,
-    )
-    if not target_sheet:
-        raise RuntimeError(f"No se encontró la pestaña con GID {GOOGLE_SHEET_GID}")
-
-    title = target_sheet["title"].replace("'", "''")
-    result = service.spreadsheets().values().get(
+    metadata = service.spreadsheets().get(
         spreadsheetId=GOOGLE_SHEET_ID,
-        range=f"'{title}'!A:Z",
+        fields="sheets.properties(sheetId,title,hidden)",
     ).execute()
-    rows = result.get("values", [])
-    if len(rows) < 2:
+    sheets = [sheet["properties"] for sheet in metadata.get("sheets", [])]
+    if not sheets:
         return None
 
-    csv_buffer = io.StringIO()
-    csv.writer(csv_buffer).writerows(rows)
-    return parse_google_sheet_csv(csv_buffer.getvalue())
+    ranges = [
+        f"'{sheet['title'].replace(chr(39), chr(39) * 2)}'!A:Z"
+        for sheet in sheets
+    ]
+    result = service.spreadsheets().values().batchGet(
+        spreadsheetId=GOOGLE_SHEET_ID,
+        ranges=ranges,
+    ).execute()
+    data_frames = []
+    sheets_with_data = 0
+
+    for sheet, value_range in zip(sheets, result.get("valueRanges", [])):
+        rows = value_range.get("values", [])
+        if len(rows) < 2:
+            continue
+
+        csv_buffer = io.StringIO()
+        csv.writer(csv_buffer).writerows(rows)
+        df_sheet = parse_google_sheet_csv(csv_buffer.getvalue())
+        if df_sheet is not None and not df_sheet.empty:
+            df_sheet["PESTAÑA_BD"] = sheet["title"]
+            data_frames.append(df_sheet)
+            sheets_with_data += 1
+
+    if not data_frames:
+        return None
+
+    df_all = pd.concat(data_frames, ignore_index=True)
+    df_all = df_all.drop_duplicates(subset=["Codigo"], keep="first")
+    registrar_log(
+        f"Catálogo sincronizado desde {sheets_with_data}/{len(sheets)} pestañas: "
+        f"{len(df_all)} productos válidos."
+    )
+    return df_all
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_google_sheet_database():
-    """Descarga la base publicada y conserva Excel como respaldo local."""
+    """Sincroniza todas las pestañas y conserva Excel como respaldo local."""
     try:
         registrar_log(
-            f"Conectando con Google Sheets ({GOOGLE_SHEET_ID} | GID: {GOOGLE_SHEET_GID})..."
+            f"Conectando con todas las pestañas de Google Sheets ({GOOGLE_SHEET_ID})..."
         )
+        df_google = fetch_google_sheet_database_api()
+        if df_google is not None and not df_google.empty:
+            return df_google
+        registrar_log("Google Sheets no contiene filas válidas; probando CSV.", "WARNING")
+    except Exception as error:
+        registrar_log(
+            f"Error leyendo todas las pestañas por API: {error}.",
+            "WARNING"
+        )
+
+    try:
         response = requests.get(GOOGLE_SHEET_CSV_URL, timeout=20)
         response.raise_for_status()
         df_google = parse_google_sheet_csv(response.text)
         if df_google is not None and not df_google.empty:
             registrar_log(
-                f"Google Sheets sincronizado: {len(df_google)} productos obtenidos."
+                f"CSV de Google Sheets sincronizado: {len(df_google)} productos."
             )
             return df_google
-        registrar_log("Google Sheets no contiene filas válidas; usando base local.", "WARNING")
     except Exception as error:
-        registrar_log(
-            f"CSV de Google Sheets no disponible: {error}.",
-            "WARNING"
-        )
-
-        try:
-            df_google = fetch_google_sheet_database_api()
-            if df_google is not None and not df_google.empty:
-                registrar_log(
-                    f"Google Sheets sincronizado mediante API: {len(df_google)} productos."
-                )
-                return df_google
-        except Exception as api_error:
-            registrar_log(
-                f"Error leyendo Google Sheets mediante API: {api_error}.",
-                "WARNING"
-            )
+        registrar_log(f"CSV de Google Sheets no disponible: {error}.", "WARNING")
 
     registrar_log("Usando base local de productos como respaldo.", "WARNING")
     return cargar_bd_local(BD_LOCAL_PATH)
