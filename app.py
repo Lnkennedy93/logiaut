@@ -84,6 +84,7 @@ st.markdown(
 # Parámetros y Constantes
 # ---------------------------------------------------------
 GOOGLE_SHEET_XLSX_URL = "https://docs.google.com/spreadsheets/d/1HatcJlMpdxk4Z92sFMjU_MPEwjqJT5oww171jPC2Gnw/export?format=xlsx"
+PRODUCT_SPREADSHEET_ID = "1aTlmA6JBldTX3zN-djDjWA5HEAExTPcdNhJsPJL9Kgo"
 SPREADSHEET_ID = "1HatcJlMpdxk4Z92sFMjU_MPEwjqJT5oww171jPC2Gnw"
 DRIVE_FOLDER_ID = "1Amwy8_uQgo6X0VS2DXH028Ep80BMi4rP"
 CEDULA_DEV_CORRECTA = "1073513861"
@@ -121,8 +122,8 @@ def get_client_ip():
         ip = headers.get("X-Forwarded-For") or headers.get("X-Real-IP")
         if ip:
             return ip.split(",")[0].strip()
-    except Exception:
-        pass
+    except Exception as e:
+        registrar_log(f"Error obteniendo IP del cliente: {e}", "WARNING")
 
     if "browser_session_id" not in st.session_state:
         st.session_state["browser_session_id"] = str(uuid.uuid4())
@@ -307,6 +308,7 @@ def validar_en_supabase(correo, password):
                 return usuario
         return None
     except Exception as e:
+        registrar_log(f"Error de conexión con Supabase durante el login: {e}", "ERROR")
         st.error(f"Error de conexión con la base de datos: {e}")
         return None
 
@@ -441,40 +443,30 @@ def get_product_data_from_source(codigo_input, df_bd):
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_google_sheet_database(custom_url=None):
-    target_url = custom_url or GOOGLE_SHEET_XLSX_URL
-    if 'format=csv' in target_url:
-        target_url = target_url.replace('format=csv', 'format=xlsx')
-
-    registrar_log(f"Iniciando sincronización completa desde Google Sheets: {target_url}")
-
     try:
-        req = urllib.request.Request(
-            target_url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        )
-        
-        with urllib.request.urlopen(req, timeout=30) as response:
-            content = response.read()
+        creds = get_google_creds()
+        if not creds:
+            raise RuntimeError("No se encontraron credenciales de la cuenta de servicio")
 
-        hojas_dict = pd.read_excel(io.BytesIO(content), sheet_name=None, engine='openpyxl')
+        service = build("sheets", "v4", credentials=creds)
+        metadata = service.spreadsheets().get(
+            spreadsheetId=PRODUCT_SPREADSHEET_ID
+        ).execute()
         list_dfs = []
 
-        for nombre_hoja, df_hoja in hojas_dict.items():
-            if df_hoja.empty:
+        for sheet in metadata.get("sheets", []):
+            nombre_hoja = sheet.get("properties", {}).get("title")
+            if not nombre_hoja:
+                continue
+            response = service.spreadsheets().values().get(
+                spreadsheetId=PRODUCT_SPREADSHEET_ID,
+                range=f"'{nombre_hoja}'!A1:Z5000"
+            ).execute()
+            rows = response.get("values", [])
+            if not rows:
                 continue
 
-            df_h = df_hoja.copy()
-            
-            idx_header = 0
-            for idx, row in df_h.iterrows():
-                row_str = " ".join([str(val).lower() for val in row.values if pd.notna(val)])
-                if any(k in row_str for k in ['código', 'codigo', 'artículo', 'articulo', 'material']) and any(k in row_str for k in ['peso', 'kg', 'kilos', 'gramos']):
-                    idx_header = idx
-                    break
-
-            if idx_header > 0:
-                df_h = pd.read_excel(io.BytesIO(content), sheet_name=nombre_hoja, skiprows=idx_header+1, engine='openpyxl')
-
+            df_h = pd.DataFrame(rows[1:], columns=rows[0])
             df_h.columns = df_h.columns.astype(str).str.strip()
 
             renames = {}
@@ -511,7 +503,7 @@ def fetch_google_sheet_database(custom_url=None):
             return None
 
     except Exception as err:
-        registrar_log(f"Error al sincronizar con Google Sheets: {err}", 'ERROR')
+        registrar_log(f"Error cargando Google Sheet de productos via API: {err}", "ERROR")
         return None
 
 @st.cache_data(ttl=3600, show_spinner=False)
