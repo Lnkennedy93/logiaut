@@ -1322,7 +1322,7 @@ if st.sidebar.button("🔄 Sincronizar Google Sheets Oficial"):
     st.cache_data.clear()
     st.rerun()
 
-st.title("📦 Calculadora de Pesos para Despacho de Materiales")
+st.title("Agilizador Administrativo")
 
 if es_dev_autenticado:
     tab1, tab2, tab3, tab_rutas, tab_extractor, tab_maestro, tab4 = st.tabs([
@@ -1360,12 +1360,17 @@ with tab1:
 with tab2:
     st.subheader("Procesar Remisión / Consulta de Pesos")
     st.info("ℹ️ Esta pestaña permite consultar pesos desde archivos PDF, sin generar reportes.")
+    if "limpieza_tab2" not in st.session_state:
+        st.session_state.limpieza_tab2 = 0
     uploaded_files_tab2 = st.file_uploader(
         "Cargar archivos PDF de remisión",
         type=["pdf"],
         accept_multiple_files=True,
-        key="uploader_consulta_pesos"
+        key=f"uploader_consulta_pesos_{st.session_state.limpieza_tab2}"
     )
+    if st.button("🗑️ Limpiar PDFs y consulta", key="limpiar_tab2"):
+        st.session_state.limpieza_tab2 += 1
+        st.rerun()
     lista_fuentes_tab2 = []
     if uploaded_files_tab2:
         for file in uploaded_files_tab2:
@@ -1376,7 +1381,31 @@ with tab2:
 
 with tab3:
     st.subheader("📤 Generador de Relación de Envio (Subir Archivos PDF)")
-    uploaded_files = st.file_uploader("Cargar PDFs", type=["pdf"], accept_multiple_files=True)
+    if "limpieza_tab3" not in st.session_state:
+        st.session_state.limpieza_tab3 = 0
+    tipo_empaque = st.selectbox(
+        "Tipo de empaque",
+        ["Caja", "Estiba", "Guacal", "Paquete", "Sobre", "Tubos"],
+        key=f"tipo_empaque_{st.session_state.limpieza_tab3}"
+    )
+    cantidad_empaque = st.number_input(
+        "Cantidad de empaques",
+        min_value=1,
+        value=1,
+        step=1,
+        key=f"cantidad_empaque_{st.session_state.limpieza_tab3}"
+    )
+    uploaded_files = st.file_uploader(
+        "Cargar PDFs",
+        type=["pdf"],
+        accept_multiple_files=True,
+        key=f"uploader_relacion_envio_{st.session_state.limpieza_tab3}"
+    )
+    if st.button("🗑️ Limpiar PDFs y campos", key="limpiar_tab3"):
+        st.session_state.limpieza_tab3 += 1
+        st.session_state.pop("saved_data_tab3", None)
+        st.rerun()
+    st.caption(f"Empaque seleccionado: {tipo_empaque} | Cantidad: {cantidad_empaque}")
     lista_fuentes = [(f, f"Entrega_{re.search(r'\d+', f.name).group(0)}") for f in uploaded_files] if uploaded_files else []
     render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
 
