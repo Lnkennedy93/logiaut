@@ -295,7 +295,16 @@ def parse_google_sheet_rows(rows):
     if len(rows) < 2:
         return None
 
-    headers = [str(value).strip().upper().replace('"', '') for value in rows[0]]
+    header_index = 0
+    for index, row in enumerate(rows[:5]):
+        normalized = [str(value).strip().upper().replace('"', '') for value in row]
+        has_code = any("CODIGO" in value or "CÓDIGO" in value for value in normalized)
+        has_weight = any("PESO" in value or "KG" in value for value in normalized)
+        if has_code and has_weight:
+            header_index = index
+            break
+
+    headers = [str(value).strip().upper().replace('"', '') for value in rows[header_index]]
 
     def find_column(*terms):
         return next((index for index, header in enumerate(headers)
@@ -312,7 +321,7 @@ def parse_google_sheet_rows(rows):
         peso_idx = 2
 
     products = []
-    for row in rows[1:]:
+    for row in rows[header_index + 1:]:
         if not row:
             continue
 
