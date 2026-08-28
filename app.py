@@ -953,6 +953,8 @@ def detectar_tipo_y_numero_documento(pdf_source):
 
     tipos_documento = [
         ("TRANSFERENCIA DE STOCK", "TRANSFERENCIA DE STOCK"),
+        ("ENTREGA DE MERCANCÍA", "ENTREGA DE MERCANCÍA"),
+        ("ENTREGA DE MERCANCIA", "ENTREGA DE MERCANCÍA"),
         ("NOTA CRÉDITO", "NOTA CRÉDITO"),
         ("NOTA CREDITO", "NOTA CRÉDITO"),
         ("NOTA DÉBITO", "NOTA DÉBITO"),
@@ -974,7 +976,7 @@ def detectar_tipo_y_numero_documento(pdf_source):
                 continue
             tipo_doc = tipo_normalizado
             match_numero = re.search(
-                rf"{re.escape(texto_tipo)}\s*{patron_numero}",
+                rf"{re.escape(texto_tipo)}\s*(?:NÚMERO\s*)?{patron_numero}",
                 linea
             )
             if match_numero:
