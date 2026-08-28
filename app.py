@@ -432,23 +432,32 @@ with tab1:
         else:
             st.warning("⚠️ No se encontraron coincidencias.")
 
-# --- PESTAÑA 2: Procesar Remisión / PDF (Solo Consulta) ---
+# --- PESTAÑA 2: Procesar Remisión / PDF desde Google Drive ---
 with tab2:
-    st.subheader("Búsqueda por PDF o Entrega (Consulta de Pesos)")
-    st.info("ℹ️ Esta sección es exclusivamente de consulta rápida de pesos mediante archivos PDF locales.")
-
-    if not es_dev_autenticado:
-        uploaded_files_tab2 = st.file_uploader("Cargar PDFs de Remisión para Consulta", type=["pdf"], accept_multiple_files=True, key="up_t2")
-        lista_fuentes_local = []
-        if uploaded_files_tab2:
-            for f in uploaded_files_tab2:
-                m = re.search(r'\d+', f.name)
-                tag = m.group(0) if m else f.name
-                lista_fuentes_local.append((f, f"Entrega_{tag}"))
-        render_consulta_despacho(lista_fuentes_local)
-    else:
-        st.warning("⚠️ La carga de archivos PDF en esta pestaña está habilitada solo en Modo Usuario.")
-        st.info("Cambia a Modo Usuario desde el panel lateral para subir archivos y consultar pesos.")
+    st.subheader("Búsqueda y Cálculo por Número de Entrega (Google Drive)")
+    st.caption("Ingrese los números de entrega para consultar los PDFs oficiales en Google Drive.")
+    num_entregas_input = st.text_input(
+        "Números de Entrega (separados por comas o espacios):",
+        placeholder="Ej: 20006903, 3171",
+        key="input_drive_search_tab2"
+    )
+    lista_fuentes_pdf_drive = []
+    if num_entregas_input.strip():
+        numeros = [n.strip() for n in re.split(r'[\s,]+', num_entregas_input) if n.strip()][:50]
+        encontrados = []
+        no_encontrados = []
+        for num in numeros:
+            pdf_buffer = descargar_pdf_desde_drive(DRIVE_FOLDER_ID, num)
+            if pdf_buffer:
+                lista_fuentes_pdf_drive.append((pdf_buffer, f"Entrega_{num}"))
+                encontrados.append(num)
+            else:
+                no_encontrados.append(num)
+        if encontrados:
+            st.success(f"✅ Se obtuvieron {len(encontrados)} documento(s) desde Google Drive: {', '.join(encontrados)}")
+        if no_encontrados:
+            st.error(f"❌ No se hallaron los siguientes números en Google Drive: {', '.join(no_encontrados)}")
+    render_consulta_despacho(lista_fuentes_pdf_drive)
 
 # --- PESTAÑA 3: Relación de Envío (Generación Oficial) ---
 with tab3:
