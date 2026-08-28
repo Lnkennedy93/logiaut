@@ -951,27 +951,43 @@ def detectar_tipo_y_numero_documento(pdf_source):
     except Exception as error:
         registrar_log(f"No se pudo identificar el tipo de documento: {error}", "WARNING")
 
-    texto_upper = texto_pagina1.upper()
     tipos_documento = [
         ("TRANSFERENCIA DE STOCK", "TRANSFERENCIA DE STOCK"),
-        ("REMISIÓN", "REMISIÓN"),
-        ("REMISION", "REMISIÓN"),
-        ("FACTURA", "FACTURA"),
         ("NOTA CRÉDITO", "NOTA CRÉDITO"),
         ("NOTA CREDITO", "NOTA CRÉDITO"),
         ("NOTA DÉBITO", "NOTA DÉBITO"),
         ("NOTA DEBITO", "NOTA DÉBITO"),
+        ("REMISIÓN", "REMISIÓN"),
+        ("REMISION", "REMISIÓN"),
+        ("FACTURA", "FACTURA"),
     ]
-    tipo_doc = next(
-        (tipo_normalizado for texto, tipo_normalizado in tipos_documento if texto in texto_upper),
-        "DOCUMENTO"
-    )
+    patron_numero = r"(?:NO\.?|N[º°]|NUMERO|NÚMERO)\s*[:#]?\s*(\d{4,10})"
+    lineas = [re.sub(r"\s+", " ", linea).strip().upper() for linea in texto_pagina1.splitlines() if linea.strip()]
 
+    tipo_doc = "DOCUMENTO"
     numero_doc = "S/N"
-    match_numero = re.search(
-        r"(?:NO\.?|N[º°]|NUMERO|NÚMERO)\s*[:#]?\s*(\d{4,10})",
-        texto_upper
-    )
+
+    # Prioriza el título y el número que aparecen juntos en la cabecera.
+    for linea in lineas:
+        for texto_tipo, tipo_normalizado in tipos_documento:
+            if texto_tipo not in linea:
+                continue
+            tipo_doc = tipo_normalizado
+            match_numero = re.search(
+                rf"{re.escape(texto_tipo)}\s*{patron_numero}",
+                linea
+            )
+            if match_numero:
+                numero_doc = match_numero.group(1)
+                return f"{tipo_doc} No. {numero_doc}"
+
+    texto_upper = " ".join(lineas)
+    for texto_tipo, tipo_normalizado in tipos_documento:
+        if texto_tipo in texto_upper:
+            tipo_doc = tipo_normalizado
+            break
+
+    match_numero = re.search(patron_numero, texto_upper)
     if match_numero:
         numero_doc = match_numero.group(1)
     else:
