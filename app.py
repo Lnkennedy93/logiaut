@@ -28,7 +28,7 @@ from supabase import create_client, Client
 # ---------------------------------------------------------
 # Configuración inicial de Streamlit
 # ---------------------------------------------------------
-st.set_page_config(page_title="Extractor y Calculadora TUVACOL S.A.", page_icon="📦", layout="wide")
+st.set_page_config(page_title="Agilizador Administrativo", page_icon="⚡", layout="wide")
 
 st.markdown(
     """
@@ -57,6 +57,15 @@ st.markdown(
             word-break: break-word;
         }
         .product-card p { margin: 0.35rem 0; line-height: 1.5; }
+        .empaque-box {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 1rem;
+            margin: 0.75rem 0 1rem;
+            border: 1px solid #d9e2f3;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
         @media (max-width: 640px) {
             .block-container { padding: 1rem 0.75rem 2rem; }
             .product-card { padding: 0.8rem; }
@@ -1380,21 +1389,30 @@ with tab2:
     render_procesamiento_despacho(lista_fuentes_tab2, "tab2", mostrar_exportacion=False)
 
 with tab3:
-    st.subheader("📤 Generador de Relación de Envio (Subir Archivos PDF)")
+    st.subheader("📤 Relación de Envío y Control de Empaques")
     if "limpieza_tab3" not in st.session_state:
         st.session_state.limpieza_tab3 = 0
-    tipo_empaque = st.selectbox(
-        "Tipo de empaque",
-        ["Caja", "Estiba", "Guacal", "Paquete", "Sobre", "Tubos"],
-        key=f"tipo_empaque_{st.session_state.limpieza_tab3}"
-    )
-    cantidad_empaque = st.number_input(
-        "Cantidad de empaques",
-        min_value=1,
-        value=1,
-        step=1,
-        key=f"cantidad_empaque_{st.session_state.limpieza_tab3}"
-    )
+
+    st.markdown('<div class="empaque-box">', unsafe_allow_html=True)
+    st.markdown("#### 📦 Cantidad de Empaques por Tipo")
+    st.caption("Indique la cantidad utilizada para cada tipo de empaque en este despacho.")
+    empaque_cols1 = st.columns(3)
+    with empaque_cols1[0]:
+        cant_estibas = st.number_input("Estibas", min_value=0, value=0, step=1, key=f"estiba_{st.session_state.limpieza_tab3}")
+    with empaque_cols1[1]:
+        cant_guacales = st.number_input("Guacales", min_value=0, value=0, step=1, key=f"guacal_{st.session_state.limpieza_tab3}")
+    with empaque_cols1[2]:
+        cant_cajas = st.number_input("Cajas", min_value=0, value=0, step=1, key=f"caja_{st.session_state.limpieza_tab3}")
+
+    empaque_cols2 = st.columns(3)
+    with empaque_cols2[0]:
+        cant_sobres = st.number_input("Sobres", min_value=0, value=0, step=1, key=f"sobre_{st.session_state.limpieza_tab3}")
+    with empaque_cols2[1]:
+        cant_paquetes = st.number_input("Paquetes", min_value=0, value=0, step=1, key=f"paquete_{st.session_state.limpieza_tab3}")
+    with empaque_cols2[2]:
+        cant_tubos = st.number_input("Tubos", min_value=0, value=0, step=1, key=f"tubo_{st.session_state.limpieza_tab3}")
+    st.markdown("</div>", unsafe_allow_html=True)
+
     uploaded_files = st.file_uploader(
         "Cargar PDFs",
         type=["pdf"],
@@ -1405,7 +1423,19 @@ with tab3:
         st.session_state.limpieza_tab3 += 1
         st.session_state.pop("saved_data_tab3", None)
         st.rerun()
-    st.caption(f"Empaque seleccionado: {tipo_empaque} | Cantidad: {cantidad_empaque}")
+
+    resumen_empaques = []
+    if cant_estibas > 0: resumen_empaques.append(f"{cant_estibas} Estiba(s)")
+    if cant_guacales > 0: resumen_empaques.append(f"{cant_guacales} Guacal(es)")
+    if cant_cajas > 0: resumen_empaques.append(f"{cant_cajas} Caja(s)")
+    if cant_sobres > 0: resumen_empaques.append(f"{cant_sobres} Sobre(s)")
+    if cant_paquetes > 0: resumen_empaques.append(f"{cant_paquetes} Paquete(s)")
+    if cant_tubos > 0: resumen_empaques.append(f"{cant_tubos} Tubo(s)")
+
+    if resumen_empaques:
+        st.info("📌 Empaques registrados: " + " | ".join(resumen_empaques))
+    else:
+        st.caption("No se han registrado cantidades de empaque.")
     lista_fuentes = [(f, f"Entrega_{re.search(r'\d+', f.name).group(0)}") for f in uploaded_files] if uploaded_files else []
     render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
 
