@@ -101,6 +101,183 @@ def get_google_creds():
         return ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
     return None
 
+
+def descargar_pdf_desde_drive(folder_id, numero_entrega):
+    try:
+        creds = get_google_creds()
+        if not creds:
+            registrar_log("No se encontraron credenciales de Google Drive.", "ERROR")
+            return None
+
+        service = build('drive', 'v3', credentials=creds)
+        query = f"('{folder_id}' in parents or name contains '{numero_entrega}') and mimeType='application/pdf' and trashed=false"
+        results = service.files().list(
+            q=query,
+            pageSize=5,
+            fields="files(id, name)",
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True
+        ).execute()
+        files = results.get('files', [])
+
+        matched_file = None
+        for f in files:
+            if str(numero_entrega) in f['name']:
+                matched_file = f
+                break
+
+        if not matched_file and files:
+            matched_file = files[0]
+
+        if not matched_file:
+            registrar_log(f"No se encontró PDF en Drive para la entrega: {numero_entrega}", "WARNING")
+            return None
+
+        file_id = matched_file['id']
+        file_name = matched_file['name']
+        request = service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+
+        fh.seek(0)
+        registrar_log(f"PDF descargado exitosamente desde Drive: {file_name}")
+        return fh
+
+    except Exception as e:
+        registrar_log(f"Error al descargar PDF de Drive para {numero_entrega}: {e}", "ERROR")
+        return None
+
+
+def extract_pdf_full_text(pdf_file):
+    try:
+        with pdfplumber.open(pdf_file) as pdf:
+            text = ""
+            for page in pdf.pages:
+                t = page.extract_text()
+                if t:
+                    text += t + "\n"
+            return text
+    except Exception:
+        return ""
+
+
+def extract_metadata_general(text):
+    meta = {
+        "No. Remisión": "No detectado",
+        "Fecha Emisión": "No detectado",
+        "Cliente / Empresa": "No detectado",
+        "Ciudad Destino": "No detectado"
+    }
+
+    if (rem_m := re.search(r"(?:No\.|N°|Remisión|Entrega)\s*[:#]?\s*(\d{6,10})", text, re.IGNORECASE)):
+        meta["No. Remisión"] = rem_m.group(1).strip()
+
+    if (f_m := re.search(r"Fecha\s*[:]??\s*(\d{2}/\d{2}/\d{4})", text, re.IGNORECASE)):
+        meta["Fecha Emisión"] = f_m.group(1).strip()
+
+    banned_headers = ["ENTREGA", "MERCANCIA", "REMISIÓN", "ORDEN", "PEDIDOS", "DIRECCIÓN"]
+    for line in text.split('\n'):
+        if "CLIENTE" in line.upper() and ":" in line:
+            val = line.split(":", 1)[1].strip()
+            if len(val) > 3 and not any(b in val.upper() for b in banned_headers):
+                meta["Cliente / Empresa"] = val
+                break
+    if meta["Cliente / Empresa"] == "No detectado":
+        if (cli_m := re.search(r"CLIENTE\s*[:]??\s*([^\n]+)", text, re.IGNORECASE)):
+            val = cli_m.group(1).strip()
+            if not any(b in val.upper() for b in banned_headers):
+                meta["Cliente / Empresa"] = val
+
+    if (ciu_m := re.search(r"Ciudad\s*[:]??\s*([^\n]+)", text, re.IGNORECASE)):
+        meta["Ciudad Destino"] = ciu_m.group(1).strip()
+
+    return meta
+
+
+def extract_observation_text(pdf_file):
+    try:
+        with pdfplumber.open(pdf_file) as pdf:
+            first_page = pdf.pages[0]
+            text = first_page.extract_text()
+
+        if not text:
+            return None
+
+        pattern = r"Observación:\s*(.*?)(?=\n[A-Z]|$)"
+        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+
+        if match:
+            obs_raw = match.group(1).replace("\n", " ").strip()
+            return re.split(r'Basado en Pedidos', obs_raw, flags=re.IGNORECASE)[0].strip()
+
+        return text[:300].replace("\n", " ")
+    except Exception:
+        return None
+
+
+def parse_observation_data(text):
+    data = {
+        "Dirección": "No detectado",
+        "Contacto": "No detectado",
+        "Celular": "No detectado",
+        "OC": "No detectado"
+    }
+
+    text_clean = text.replace("\n", " ").strip() if text else ""
+
+    cel_match = re.search(r'\b(3\d{2}[\s\-]?\d{3}[\s\-]?\d{4}|\b3\d{9}\b|\b\d{10}\b)', text_clean)
+    if cel_match:
+        data["Celular"] = cel_match.group(1).strip()
+
+    cont_match = re.search(r"CONTACTO[:]??\s*([A-ZÁÉÍÓÚÑ\s]+?)(?=\s*-\s*TELEFONO|\s*-\s*TEL|\s*CEL\.|\s*OC|\s*//|$)", text_clean, re.IGNORECASE)
+    if cont_match:
+        nombre = cont_match.group(1).strip()
+        if len(nombre) > 2:
+            data["Contacto"] = nombre
+
+    dir_match = re.search(r"(?:ENTREGAR EN|DIRECCION DE ENVIO|DIRECCIÓN DE ENVÍO|DIRECCIÓN|DIRECCION)[:]??\s*(.*?)(?=\s*//|\s*CONTACTO|\s*HORARIO|\s*OC|$)", text_clean, re.IGNORECASE)
+    if dir_match:
+        dir_val = dir_match.group(1).strip()
+        data["Dirección"] = re.split(r'Basado en Pedidos', dir_val, flags=re.IGNORECASE)[0].strip()
+    else:
+        data["Dirección"] = text_clean
+
+    if data["Contacto"] != "No detectado":
+        data["Contacto"] = data["Contacto"].replace("PRINCIPAL", "").replace("ALMACEN", "").strip()
+
+    return data
+
+
+def procesar_ubicacion(direccion):
+    dir_upper = direccion.upper()
+    mun = ["PUERTO LOPEZ", "PUERTO GAITAN", "BARRANQUILLA", "MEDELLIN", "ITAGUI", "COTA", "FUNZA", "MOSQUERA", "MADRID", "FACATATIVA", "CHIA", "CAJICA", "ZIPAQUIRA", "YUMBO", "CALI", "BOGOTA", "TOCANCIPA", "SOACHA", "PUENTE ARANDA"]
+    muni_det = "NO ESPECIFICADO"
+    for m in mun:
+        if m in dir_upper:
+            muni_det = m
+            break
+    if muni_det in ["FUNZA", "MOSQUERA", "MADRID", "FACATATIVA"]:
+        reg = "SABANA OCCIDENTE"
+    elif muni_det in ["COTA", "CHIA", "CAJICA", "ZIPAQUIRA", "TOCANCIPA"]:
+        reg = "SABANA NORTE"
+    elif muni_det in ["BOGOTA", "PUENTE ARANDA"]:
+        reg = "NORTE" if any(z in dir_upper for z in ["SUBA", "USAQUEN", "CALLE 170"]) else "SUR"
+    elif muni_det in ["YUMBO", "CALI", "BARRANQUILLA", "MEDELLIN", "ITAGUI"]:
+        reg = "SUR"
+    else:
+        reg = "POR DEFINIR"
+    return muni_det, reg
+
+
+def generar_link_maps(direccion):
+    if not direccion or direccion == "No detectado":
+        return "#"
+    return "https://www.google.com/maps/search/?api=1&query=" + direccion.strip().replace(" ", "+")
+
+
 # Supabase Auth
 @st.cache_resource
 def init_supabase():

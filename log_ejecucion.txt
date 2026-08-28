@@ -14207,3 +14207,24 @@ ConnectionResetError: [WinError 10054] Se ha forzado la interrupción de una con
 2026-08-25 21:46:44 [INFO] --- Sesión iniciada ---
 2026-08-25 21:46:44 [ERROR] No se encontró la base local de pesos: BD_Pesos.xlsx
 Prueba de escritura inmediata con ruta absoluta
+2026-08-27 21:15:44 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:03 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:04 [INFO] HTTP Request: GET https://arwacdkbojjfelqcqank.supabase.co/rest/v1/usuarios_licencias?select=%2A&correo=eq.auxlogisticabog%40tuvacol.com&password=eq.123456 "HTTP/2 200 OK"
+2026-08-27 21:16:04 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:04 [INFO] Iniciando sincronización completa desde Google Sheets: https://docs.google.com/spreadsheets/d/1aTlmA6JBldTX3zN-djDjWA5HEAExTPcdNhJsPJL9Kgo/export?format=xlsx
+2026-08-27 21:16:06 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:10 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:11 [INFO] Sincronización exitosa. Total: 10343 productos en 50 pestañas.
+2026-08-27 21:16:16 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:29 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:40 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:40 [INFO] [SAP BTP ODATA MOCK] Consumiendo API_PRODUCT_SRV para material: 45210080
+2026-08-27 21:16:43 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:43 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:43 [INFO] Iniciando sincronización completa desde Google Sheets: https://docs.google.com/spreadsheets/d/1aTlmA6JBldTX3zN-djDjWA5HEAExTPcdNhJsPJL9Kgo/export?format=xlsx
+2026-08-27 21:16:48 [INFO] Sincronización exitosa. Total: 10343 productos en 50 pestañas.
+2026-08-27 21:16:49 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:50 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:50 [INFO] --- Sesión iniciada ---
+2026-08-27 21:16:50 [INFO] Iniciando sincronización completa desde Google Sheets: https://docs.google.com/spreadsheets/d/1aTlmA6JBldTX3zN-djDjWA5HEAExTPcdNhJsPJL9Kgo/export?format=xlsx
+2026-08-27 21:16:56 [INFO] Sincronización exitosa. Total: 10343 productos en 50 pestañas.
