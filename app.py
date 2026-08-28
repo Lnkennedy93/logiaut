@@ -1361,3 +1361,20 @@ with tab_rutas:
             structured = parse_observation_data(raw_obs)
             muni, reg = procesar_ubicacion(structured["Dirección"])
             st.info(f"Dirección: {structured['Dirección']} | Región: {reg}")
+
+if es_dev_autenticado:
+    with tab4:
+        st.subheader("📜 Log Auditoría de Ejecución")
+        if os.path.exists(LOG_FILENAME):
+            try:
+                with open(LOG_FILENAME, "r", encoding="utf-8") as f:
+                    log_content = f.read()
+                if log_content.strip():
+                    st.download_button("💾 Descargar log", log_content, LOG_FILENAME, "text/plain")
+                    st.text_area("Contenido del Log:", value=log_content, height=400)
+                else:
+                    st.info("ℹ️ El archivo de log está vacío por el momento.")
+            except Exception as e:
+                st.error(f"Error leyendo el archivo de log: {e}")
+        else:
+            st.warning("⚠️ El archivo 'log_ejecucion.txt' aún no ha sido creado.")
