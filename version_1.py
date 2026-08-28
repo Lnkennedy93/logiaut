@@ -938,6 +938,50 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     return buffer.getvalue()
 
 # ---------------------------------------------------------
+# Identificación de documentos y extracción de materiales
+# ---------------------------------------------------------
+def detectar_tipo_y_numero_documento(pdf_source):
+    texto_pagina1 = ""
+    try:
+        if hasattr(pdf_source, "seek"):
+            pdf_source.seek(0)
+        with pdfplumber.open(pdf_source) as pdf:
+            if pdf.pages:
+                texto_pagina1 = pdf.pages[0].extract_text() or ""
+    except Exception as error:
+        registrar_log(f"No se pudo identificar el tipo de documento: {error}", "WARNING")
+
+    texto_upper = texto_pagina1.upper()
+    tipos_documento = [
+        ("TRANSFERENCIA DE STOCK", "TRANSFERENCIA DE STOCK"),
+        ("REMISIÓN", "REMISIÓN"),
+        ("REMISION", "REMISIÓN"),
+        ("FACTURA", "FACTURA"),
+        ("NOTA CRÉDITO", "NOTA CRÉDITO"),
+        ("NOTA CREDITO", "NOTA CRÉDITO"),
+        ("NOTA DÉBITO", "NOTA DÉBITO"),
+        ("NOTA DEBITO", "NOTA DÉBITO"),
+    ]
+    tipo_doc = next(
+        (tipo_normalizado for texto, tipo_normalizado in tipos_documento if texto in texto_upper),
+        "DOCUMENTO"
+    )
+
+    numero_doc = "S/N"
+    match_numero = re.search(
+        r"(?:NO\.?|N[º°]|NUMERO|NÚMERO)\s*[:#]?\s*(\d{4,10})",
+        texto_upper
+    )
+    if match_numero:
+        numero_doc = match_numero.group(1)
+    else:
+        match_archivo = re.search(r"\d+", getattr(pdf_source, "name", ""))
+        if match_archivo:
+            numero_doc = match_archivo.group(0)
+
+    return f"{tipo_doc} No. {numero_doc}"
+
+# ---------------------------------------------------------
 # Extractor Inteligente de Materiales
 # ---------------------------------------------------------
 def extraer_tabla_materiales(pdf_source, nombre_doc="Desconocido"):
@@ -1386,9 +1430,7 @@ with tab2:
     lista_fuentes_tab2 = []
     if uploaded_files_tab2:
         for file in uploaded_files_tab2:
-            numero_entrega = re.search(r'\d+', file.name)
-            tag_entrega = numero_entrega.group(0) if numero_entrega else file.name
-            lista_fuentes_tab2.append((file, f"Entrega_{tag_entrega}"))
+            lista_fuentes_tab2.append((file, detectar_tipo_y_numero_documento(file)))
     render_procesamiento_despacho(lista_fuentes_tab2, "tab2", mostrar_exportacion=False)
 
 with tab3:
@@ -1441,7 +1483,7 @@ with tab3:
     else:
         st.caption("No se han registrado cantidades de empaque.")
     st.session_state["empaques_info_tab3"] = ", ".join(resumen_empaques) if resumen_empaques else "Ninguno especificado"
-    lista_fuentes = [(f, f"Entrega_{re.search(r'\d+', f.name).group(0)}") for f in uploaded_files] if uploaded_files else []
+    lista_fuentes = [(f, detectar_tipo_y_numero_documento(f)) for f in uploaded_files] if uploaded_files else []
     render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
 
 if es_dev_autenticado:
