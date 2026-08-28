@@ -310,11 +310,11 @@ def parse_google_sheet_rows(rows):
     desc_idx = find_column("DESC", "DESCRIPCION", "DESCRIPCIÓN", "PRODUCTO", "NOMBRE")
     peso_idx = find_column("PESO", "KG", "KILOS", "UNIT")
     if code_idx is None:
-        code_idx = 0
+        code_idx = 1 if len(headers) > 1 else 0
     if desc_idx is None:
-        desc_idx = 1
+        desc_idx = 2 if len(headers) > 2 else 1
     if peso_idx is None:
-        peso_idx = 2
+        peso_idx = 4 if len(headers) > 4 else len(headers) - 1
 
     products = []
     for row in rows[header_index + 1:]:
