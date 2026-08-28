@@ -944,7 +944,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
 # ---------------------------------------------------------
 # Identificación de documentos y extracción de materiales
 # ---------------------------------------------------------
-def detectar_tipo_y_numero_documento(pdf_source):
+def analizar_metadatos_documento(pdf_source):
     texto_pagina1 = ""
     try:
         if hasattr(pdf_source, "seek"):
@@ -953,7 +953,7 @@ def detectar_tipo_y_numero_documento(pdf_source):
             if pdf.pages:
                 texto_pagina1 = pdf.pages[0].extract_text() or ""
     except Exception as error:
-        registrar_log(f"No se pudo identificar el tipo de documento: {error}", "WARNING")
+        registrar_log(f"No se pudo identificar los metadatos del documento: {error}", "WARNING")
 
     tipos_documento = [
         ("TRANSFERENCIA DE STOCK", "TRANSFERENCIA DE STOCK"),
@@ -972,8 +972,6 @@ def detectar_tipo_y_numero_documento(pdf_source):
 
     tipo_doc = "DOCUMENTO"
     numero_doc = "S/N"
-
-    # Prioriza el título y el número que aparecen juntos en la cabecera.
     for linea in lineas:
         for texto_tipo, tipo_normalizado in tipos_documento:
             if texto_tipo not in linea:
@@ -985,23 +983,38 @@ def detectar_tipo_y_numero_documento(pdf_source):
             )
             if match_numero:
                 numero_doc = match_numero.group(1)
-                return f"{tipo_doc} No. {numero_doc}"
-
-    texto_upper = " ".join(lineas)
-    for texto_tipo, tipo_normalizado in tipos_documento:
-        if texto_tipo in texto_upper:
-            tipo_doc = tipo_normalizado
+                break
+        if numero_doc != "S/N":
             break
 
-    match_numero = re.search(patron_numero, texto_upper)
-    if match_numero:
-        numero_doc = match_numero.group(1)
-    else:
-        match_archivo = re.search(r"\d+", getattr(pdf_source, "name", ""))
-        if match_archivo:
-            numero_doc = match_archivo.group(0)
+    texto_upper = " ".join(lineas)
+    if tipo_doc == "DOCUMENTO":
+        for texto_tipo, tipo_normalizado in tipos_documento:
+            if texto_tipo in texto_upper:
+                tipo_doc = tipo_normalizado
+                break
 
-    return f"{tipo_doc} No. {numero_doc}"
+    if numero_doc == "S/N":
+        match_numero = re.search(patron_numero, texto_upper)
+        if match_numero:
+            numero_doc = match_numero.group(1)
+        else:
+            match_archivo = re.search(r"\d+", getattr(pdf_source, "name", ""))
+            if match_archivo:
+                numero_doc = match_archivo.group(0)
+
+    sucursal_destino = "DESTINO GENERAL"
+    match_nit = re.search(r"NIT\s*:\s*([^\n]+)", texto_pagina1, re.IGNORECASE)
+    if match_nit:
+        sucursal_destino = match_nit.group(1).strip()
+    else:
+        destinos = ["CARTAGENA", "BARRANQUILLA", "MEDELLÍN", "MEDELLIN", "CALI", "TRÁNSITO", "TRANSITO"]
+        for linea in lineas:
+            if any(destino in linea for destino in destinos):
+                sucursal_destino = linea
+                break
+
+    return f"{tipo_doc} No. {numero_doc} | Destino: {sucursal_destino}"
 
 # ---------------------------------------------------------
 # Extractor Inteligente de Materiales
@@ -1455,7 +1468,7 @@ with tab2:
     lista_fuentes_tab2 = []
     if uploaded_files_tab2:
         for file in uploaded_files_tab2:
-            lista_fuentes_tab2.append((file, detectar_tipo_y_numero_documento(file)))
+            lista_fuentes_tab2.append((file, analizar_metadatos_documento(file)))
     render_procesamiento_despacho(lista_fuentes_tab2, "tab2", mostrar_exportacion=False)
 
 with tab3:
@@ -1475,7 +1488,7 @@ with tab3:
         st.session_state.pop("empaques_info_tab3", None)
         st.rerun()
 
-    lista_fuentes = [(f, detectar_tipo_y_numero_documento(f)) for f in uploaded_files] if uploaded_files else []
+    lista_fuentes = [(f, analizar_metadatos_documento(f)) for f in uploaded_files] if uploaded_files else []
     df_resultado_t3 = render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
 
     if uploaded_files and df_resultado_t3 is not None and not df_resultado_t3.empty:
