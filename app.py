@@ -137,10 +137,6 @@ def get_google_creds():
                 "Se intentará credentials.json.",
                 "WARNING"
             )
-    elif os.path.exists('credentials.json'):
-        return service_account.Credentials.from_service_account_file(
-            'credentials.json', scopes=scope
-        )
     if os.path.exists('credentials.json'):
         return service_account.Credentials.from_service_account_file(
             'credentials.json', scopes=scope
@@ -354,7 +350,10 @@ def fetch_google_sheet_database_api():
     """Lee y unifica todas las pestañas del catálogo mediante la API."""
     creds = get_google_creds()
     if not creds:
-        return None
+        raise RuntimeError(
+            "No hay credenciales válidas para Google Sheets. "
+            "Configura [google] en st.secrets o proporciona credentials.json."
+        )
 
     service = build("sheets", "v4", credentials=creds)
     metadata = service.spreadsheets().get(
@@ -405,7 +404,11 @@ def fetch_google_sheet_database():
         df_google = fetch_google_sheet_database_api()
         if df_google is not None and not df_google.empty:
             return df_google
-        registrar_log("Google Sheets no contiene filas válidas; usando base local.", "WARNING")
+        registrar_log(
+            "La API de Google respondió, pero ninguna pestaña contiene filas "
+            "válidas con código y descripción; usando base local.",
+            "WARNING"
+        )
     except Exception as error:
         registrar_log(
             f"Error leyendo todas las pestañas por API: {error}.",
