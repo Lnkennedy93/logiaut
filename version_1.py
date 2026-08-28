@@ -35,7 +35,33 @@ st.markdown(
     <html lang="es" class="notranslate" translate="no">
     <head>
         <meta name="google" content="notranslate" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
+    <style>
+        .stDataFrame, .stTable { width: 100% !important; overflow-x: auto !important; }
+        div[data-testid="stDataFrame"] div, td, th {
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            word-wrap: break-word !important;
+        }
+        .product-card {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 1rem;
+            margin: 0.75rem 0 1rem;
+            border: 1px solid #d9e2f3;
+            border-left: 5px solid #1F3864;
+            border-radius: 8px;
+            background: #f7faff;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .product-card p { margin: 0.35rem 0; line-height: 1.5; }
+        @media (max-width: 640px) {
+            .block-container { padding: 1rem 0.75rem 2rem; }
+            .product-card { padding: 0.8rem; }
+        }
+    </style>
     """,
     unsafe_allow_html=True
 )
@@ -1305,9 +1331,8 @@ if es_dev_autenticado:
         "Gestión de Rutas", "Clasificador de Rutas", "🗂️ Registro Maestro", "📜 Logs"
     ])
 else:
-    tab1, tab2, tab3, tab_rutas = st.tabs([
-        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío",
-        "Gestión de Rutas"
+    tab1, tab2, tab3 = st.tabs([
+        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío"
     ])
 
 with tab1:
@@ -1318,11 +1343,18 @@ with tab1:
         item = get_product_data_from_source(codigo_input, df_bd)
         if item is not None:
             peso_unit = float(str(item.get('Peso_KG', 0.0)).replace(',', '.'))
-            res_col1, res_col2, res_col3, res_col4 = st.columns(4)
-            res_col1.metric("Código", str(item['Codigo']))
-            res_col2.metric("Descripción", str(item['Descripcion']))
-            res_col3.metric("Peso Unitario", f"{peso_unit:.2f} KG")
-            res_col4.metric("Peso Total", f"{peso_unit * cant_input:.2f} KG")
+            st.markdown(
+                f"""
+                <div class="product-card">
+                    <p><strong>📦 Código:</strong> {item['Codigo']}</p>
+                    <p><strong>📝 Descripción:</strong> {item['Descripcion']}</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            res_col1, res_col2 = st.columns(2)
+            res_col1.metric("Peso Unitario", f"{peso_unit:.2f} KG")
+            res_col2.metric("Peso Total", f"{peso_unit * cant_input:.2f} KG")
         else:
             st.warning("⚠️ No se encontraron coincidencias.")
 
@@ -1351,18 +1383,18 @@ with tab3:
     lista_fuentes = [(f, f"Entrega_{re.search(r'\d+', f.name).group(0)}") for f in uploaded_files] if uploaded_files else []
     render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
 
-with tab_rutas:
-    st.subheader("Clasificador de Rutas")
-    drive_busqueda = st.text_input("🔍 Buscar por No. Entrega en Google Drive:", placeholder="Ej: 20006895")
-    pdf_fuente = descargar_pdf_desde_drive(DRIVE_FOLDER_ID, drive_busqueda.strip()) if drive_busqueda.strip() else None
-    if pdf_fuente:
-        raw_obs = extract_observation_text(pdf_fuente)
-        if raw_obs:
-            structured = parse_observation_data(raw_obs)
-            muni, reg = procesar_ubicacion(structured["Dirección"])
-            st.info(f"Dirección: {structured['Dirección']} | Región: {reg}")
-
 if es_dev_autenticado:
+    with tab_rutas:
+        st.subheader("Clasificador de Rutas")
+        drive_busqueda = st.text_input("🔍 Buscar por No. Entrega en Google Drive:", placeholder="Ej: 20006895")
+        pdf_fuente = descargar_pdf_desde_drive(DRIVE_FOLDER_ID, drive_busqueda.strip()) if drive_busqueda.strip() else None
+        if pdf_fuente:
+            raw_obs = extract_observation_text(pdf_fuente)
+            if raw_obs:
+                structured = parse_observation_data(raw_obs)
+                muni, reg = procesar_ubicacion(structured["Dirección"])
+                st.info(f"Dirección: {structured['Dirección']} | Región: {reg}")
+
     with tab4:
         st.subheader("📜 Log Auditoría de Ejecución")
         if os.path.exists(LOG_FILENAME):
