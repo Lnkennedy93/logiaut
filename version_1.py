@@ -1367,8 +1367,10 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                         mime="application/pdf",
                         use_container_width=True, key=f"dl_pdf_{tab_key}"
                     )
+            return df_resumen
     else:
         st.warning("⚠️ No se encontraron productos válidos en los documentos seleccionados.")
+    return None
 
 # ---------------------------------------------------------
 # Interfaz Principal y Pestañas
@@ -1461,26 +1463,6 @@ with tab3:
     if "limpieza_tab3" not in st.session_state:
         st.session_state.limpieza_tab3 = 0
 
-    st.markdown('<div class="empaque-box">', unsafe_allow_html=True)
-    st.markdown("#### 📦 Cantidad de Empaques por Tipo")
-    st.caption("Indique la cantidad utilizada para cada tipo de empaque en este despacho.")
-    empaque_cols1 = st.columns(3)
-    with empaque_cols1[0]:
-        cant_estibas = st.number_input("Estibas", min_value=0, value=0, step=1, key=f"estiba_{st.session_state.limpieza_tab3}")
-    with empaque_cols1[1]:
-        cant_guacales = st.number_input("Guacales", min_value=0, value=0, step=1, key=f"guacal_{st.session_state.limpieza_tab3}")
-    with empaque_cols1[2]:
-        cant_cajas = st.number_input("Cajas", min_value=0, value=0, step=1, key=f"caja_{st.session_state.limpieza_tab3}")
-
-    empaque_cols2 = st.columns(3)
-    with empaque_cols2[0]:
-        cant_sobres = st.number_input("Sobres", min_value=0, value=0, step=1, key=f"sobre_{st.session_state.limpieza_tab3}")
-    with empaque_cols2[1]:
-        cant_paquetes = st.number_input("Paquetes", min_value=0, value=0, step=1, key=f"paquete_{st.session_state.limpieza_tab3}")
-    with empaque_cols2[2]:
-        cant_tubos = st.number_input("Tubos", min_value=0, value=0, step=1, key=f"tubo_{st.session_state.limpieza_tab3}")
-    st.markdown("</div>", unsafe_allow_html=True)
-
     uploaded_files = st.file_uploader(
         "Cargar PDFs",
         type=["pdf"],
@@ -1493,21 +1475,42 @@ with tab3:
         st.session_state.pop("empaques_info_tab3", None)
         st.rerun()
 
-    resumen_empaques = []
-    if cant_estibas > 0: resumen_empaques.append(f"{cant_estibas} Estiba(s)")
-    if cant_guacales > 0: resumen_empaques.append(f"{cant_guacales} Guacal(es)")
-    if cant_cajas > 0: resumen_empaques.append(f"{cant_cajas} Caja(s)")
-    if cant_sobres > 0: resumen_empaques.append(f"{cant_sobres} Sobre(s)")
-    if cant_paquetes > 0: resumen_empaques.append(f"{cant_paquetes} Paquete(s)")
-    if cant_tubos > 0: resumen_empaques.append(f"{cant_tubos} Tubo(s)")
-
-    if resumen_empaques:
-        st.info("📌 Empaques registrados: " + " | ".join(resumen_empaques))
-    else:
-        st.caption("No se han registrado cantidades de empaque.")
-    st.session_state["empaques_info_tab3"] = ", ".join(resumen_empaques) if resumen_empaques else "Ninguno especificado"
     lista_fuentes = [(f, detectar_tipo_y_numero_documento(f)) for f in uploaded_files] if uploaded_files else []
-    render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
+    df_resultado_t3 = render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
+
+    if uploaded_files and df_resultado_t3 is not None and not df_resultado_t3.empty:
+        st.markdown("---")
+        st.markdown("#### 📦 Cantidad de Empaques por Tipo")
+        st.caption("Indique la cantidad utilizada para cada tipo de empaque en este despacho.")
+        empaque_cols1 = st.columns(3)
+        with empaque_cols1[0]:
+            cant_estibas = st.number_input("Estibas", min_value=0, value=0, step=1, key=f"estiba_{st.session_state.limpieza_tab3}")
+        with empaque_cols1[1]:
+            cant_guacales = st.number_input("Guacales", min_value=0, value=0, step=1, key=f"guacal_{st.session_state.limpieza_tab3}")
+        with empaque_cols1[2]:
+            cant_cajas = st.number_input("Cajas", min_value=0, value=0, step=1, key=f"caja_{st.session_state.limpieza_tab3}")
+
+        empaque_cols2 = st.columns(3)
+        with empaque_cols2[0]:
+            cant_sobres = st.number_input("Sobres", min_value=0, value=0, step=1, key=f"sobre_{st.session_state.limpieza_tab3}")
+        with empaque_cols2[1]:
+            cant_paquetes = st.number_input("Paquetes", min_value=0, value=0, step=1, key=f"paquete_{st.session_state.limpieza_tab3}")
+        with empaque_cols2[2]:
+            cant_tubos = st.number_input("Tubos", min_value=0, value=0, step=1, key=f"tubo_{st.session_state.limpieza_tab3}")
+
+        resumen_empaques = []
+        if cant_estibas > 0: resumen_empaques.append(f"{cant_estibas} Estiba(s)")
+        if cant_guacales > 0: resumen_empaques.append(f"{cant_guacales} Guacal(es)")
+        if cant_cajas > 0: resumen_empaques.append(f"{cant_cajas} Caja(s)")
+        if cant_sobres > 0: resumen_empaques.append(f"{cant_sobres} Sobre(s)")
+        if cant_paquetes > 0: resumen_empaques.append(f"{cant_paquetes} Paquete(s)")
+        if cant_tubos > 0: resumen_empaques.append(f"{cant_tubos} Tubo(s)")
+
+        st.session_state["empaques_info_tab3"] = ", ".join(resumen_empaques) if resumen_empaques else "Ninguno especificado"
+        if resumen_empaques:
+            st.info("📌 Empaques registrados: " + " | ".join(resumen_empaques))
+        else:
+            st.caption("No se han registrado cantidades de empaque.")
 
 if es_dev_autenticado:
     with tab_rutas:
