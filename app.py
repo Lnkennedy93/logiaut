@@ -45,41 +45,6 @@ st.markdown("""
             width: 100% !important; cursor: pointer !important;
         }
         div.stFormSubmitButton > button:hover { background-color: #2c4d8c !important; }
-
-        .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
-        [data-testid="stSidebar"] { background: linear-gradient(180deg, #f3f7ff 0%, #eef3fb 100%); }
-        [data-testid="stSidebar"] .stRadio > div { gap: 0.5rem; }
-        [data-testid="stSidebar"] .stRadio label {
-            background: rgba(31, 56, 100, 0.06);
-            border: 1px solid rgba(31, 56, 100, 0.12);
-            border-radius: 10px;
-            padding: 0.6rem 0.8rem;
-            margin: 0.15rem 0;
-        }
-        .search-card {
-            background: linear-gradient(135deg, #f7fafe 0%, #edf4ff 100%);
-            border: 1px solid rgba(31, 56, 100, 0.12);
-            border-left: 6px solid #1F3864;
-            border-radius: 16px;
-            padding: 1.2rem 1.3rem;
-            margin: 0.6rem 0 1.2rem 0;
-            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
-        }
-        .search-card-title {
-            font-size: 1.05rem; font-weight: 700; color: #1F3864; margin: 0 0 0.4rem 0;
-        }
-        .search-card-text {
-            font-size: 1rem; line-height: 1.6; color: #1f2937; margin: 0; white-space: normal; overflow-wrap: break-word;
-        }
-        .mode-banner {
-            background: linear-gradient(135deg, #1f3864, #3559a8);
-            color: white;
-            border-radius: 12px;
-            padding: 0.8rem 1rem;
-            margin-bottom: 1rem;
-            font-weight: 600;
-            box-shadow: 0 8px 18px rgba(31, 56, 100, 0.15);
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -372,12 +337,7 @@ if st.sidebar.button("Cerrar Sesión", use_container_width=True):
 
 st.sidebar.markdown("---")
 st.sidebar.header("🔐 Modo de Operación")
-modo_app = st.sidebar.radio("Seleccione la interfaz:", ["Modo Usuario", "Modo Destroller"], horizontal=True)
-
-if modo_app == "Modo Usuario":
-    st.sidebar.markdown("<div class='mode-banner'>Usuario activo · permisos de consulta y carga</div>", unsafe_allow_html=True)
-elif modo_app == "Modo Destroller":
-    st.sidebar.markdown("<div class='mode-banner'>Destroller activo · funciones avanzadas habilitadas</div>", unsafe_allow_html=True)
+modo_app = st.sidebar.radio("Seleccione la interfaz:", ["Modo Usuario", "Modo Destroller"])
 
 es_dev_autenticado = False
 if modo_app == "Modo Destroller":
@@ -409,16 +369,16 @@ with tab1:
     st.subheader("Búsqueda por Código")
     codigo_input = st.text_input("Ingrese Código o Descripción del Artículo", value="", placeholder="Ej. 108001051")
     cant_input = st.number_input("Cantidad a despachar", min_value=1.0, value=1.0, step=1.0)
-
+    
     if codigo_input.strip() != "":
         item = get_product_data_from_source(codigo_input, df_bd)
         if item is not None:
             peso_unit = float(str(item.get('Peso_KG', 0.0)).replace(',', '.'))
-
+            
             st.markdown(f"""
-                <div class="search-card">
-                    <p class="search-card-title">📦 Código: {item['Codigo']}</p>
-                    <p class="search-card-text"><strong>📝 Descripción:</strong> {item['Descripcion']}</p>
+                <div style="background-color: #f0f2f6; padding: 20px; border-radius: 8px; border-left: 6px solid #1F3864; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
+                    <p style="margin: 0 0 8px 0; font-size: 18px; color: #1F3864;"><b>📦 Código:</b> {item['Codigo']}</p>
+                    <p style="margin: 0; font-size: 17px; color: #000000; line-height: 1.5;"><b>📝 Descripción:</b> {item['Descripcion']}</p>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -432,19 +392,15 @@ with tab1:
 with tab2:
     st.subheader("Búsqueda por PDF o Entrega (Consulta de Pesos)")
     st.info("ℹ️ Esta sección es exclusivamente de consulta rápida de pesos mediante archivos PDF locales.")
-
-    if not es_dev_autenticado:
-        uploaded_files_tab2 = st.file_uploader("Cargar PDFs de Remisión para Consulta", type=["pdf"], accept_multiple_files=True, key="up_t2")
-        lista_fuentes_local = []
-        if uploaded_files_tab2:
-            for f in uploaded_files_tab2:
-                m = re.search(r'\d+', f.name)
-                tag = m.group(0) if m else f.name
-                lista_fuentes_local.append((f, f"Entrega_{tag}"))
-        render_consulta_despacho(lista_fuentes_local)
-    else:
-        st.warning("⚠️ La carga de archivos PDF en esta pestaña está habilitada solo en Modo Usuario.")
-        st.info("Cambia a Modo Usuario desde el panel lateral para subir archivos y consultar pesos.")
+    
+    uploaded_files_tab2 = st.file_uploader("Cargar PDFs de Remisión para Consulta", type=["pdf"], accept_multiple_files=True, key="up_t2")
+    lista_fuentes_local = []
+    if uploaded_files_tab2:
+        for f in uploaded_files_tab2:
+            m = re.search(r'\d+', f.name)
+            tag = m.group(0) if m else f.name
+            lista_fuentes_local.append((f, f"Entrega_{tag}"))
+    render_consulta_despacho(lista_fuentes_local)
 
 # --- PESTAÑA 3: Relación de Envío (Generación Oficial) ---
 with tab3:
