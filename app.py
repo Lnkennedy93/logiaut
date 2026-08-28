@@ -28,7 +28,11 @@ from supabase import create_client, Client
 # ---------------------------------------------------------
 # Configuración inicial de Streamlit
 # ---------------------------------------------------------
-st.set_page_config(page_title="Agilizador Administrativo", page_icon="⚡", layout="wide")
+st.set_page_config(
+    page_title="FlowShift",
+    page_icon="🔄",
+    layout="wide"
+)
 
 st.markdown(
     """
@@ -212,8 +216,8 @@ def pantalla_login():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        st.subheader("🚀 Optimiza tu Logistica - LogiAut")
-        st.caption("Ingrese sus credenciales autorizadas para acceder al sistema.")
+        st.subheader("🔄 FlowShift")
+        st.caption("La evolución inteligente de tu gestión administrativa.")
         with st.form("form_login"):
             correo = st.text_input("Correo electrónico")
             password = st.text_input("Contraseña", type="password")
@@ -1396,7 +1400,8 @@ if st.sidebar.button("🔄 Sincronizar Google Sheets Oficial"):
     st.cache_data.clear()
     st.rerun()
 
-st.title("Agilizador Administrativo")
+st.title("🔄 FlowShift")
+st.markdown("<p style='color: #666; font-size: 16px; margin-top: -15px;'><i>La evolución inteligente de tu gestión administrativa.</i></p>", unsafe_allow_html=True)
 
 if es_dev_autenticado:
     tab1, tab2, tab3, tab_rutas, tab_extractor, tab_maestro, tab4 = st.tabs([
