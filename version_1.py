@@ -403,10 +403,11 @@ def cargar_bd_local(ruta_archivo):
 # ---------------------------------------------------------
 # Generadores Excel y PDF (GID-F-010)
 # ---------------------------------------------------------
-def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None):
+def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None):
     if driver_info is None: driver_info = {}
     if dest_info is None: dest_info = {}
     if elaborado_info is None: elaborado_info = {}
+    if empaques_info is None: empaques_info = "Ninguno especificado"
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -592,7 +593,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
         i = j
 
     docs_str = ", ".join(docs_unicos)
-    obs_texto = f"Observaciones: TOTAL: {tot_und:,.0f} UND, {tot_mts:,.0f} MTS | DOCS: {docs_str}"
+    obs_texto = f"Observaciones: TOTAL: {tot_und:,.0f} UND, {tot_mts:,.0f} MTS | DOCS: {docs_str} | Empaques: {empaques_info}"
 
     ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=4)
     ws.cell(current_row, 1, obs_texto).font = font_calibri_9_bold
@@ -706,10 +707,11 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
     return output.getvalue()
 
 
-def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None):
+def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None):
     if driver_info is None: driver_info = {}
     if dest_info is None: dest_info = {}
     if elaborado_info is None: elaborado_info = {}
+    if empaques_info is None: empaques_info = "Ninguno especificado"
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -821,7 +823,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         ])
 
     docs_str = ", ".join(docs_unicos)
-    obs_texto = f"Observaciones: TOTAL: {tot_und:,.0f} UND, {tot_mts:,.0f} MTS | DOCS: {docs_str}"
+    obs_texto = f"Observaciones: TOTAL: {tot_und:,.0f} UND, {tot_mts:,.0f} MTS | DOCS: {docs_str} | Empaques: {empaques_info}"
 
     d_table_data.append([
         Paragraph(f"<b>{obs_texto}</b>", normal_style),
@@ -1269,12 +1271,13 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     "placa": saved["d_placa"], "marca": saved["d_marca"], "transportadora": saved["d_transp"]
                 }
                 elaborado_info = {"nombre": saved["elab_nombre"]}
+                empaques_info = st.session_state.get("empaques_info_tab3", "Ninguno especificado")
 
                 st.markdown("---")
                 st.markdown("### 📥 Exportar y Previsualizar Formato Oficial TUVACOL (GID-F-010)")
                 
-                excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info)
-                pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info)
+                excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info)
+                pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info)
 
                 with st.expander("👁️ Previsualizar Documento Generado (PDF)", expanded=False):
                     base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
@@ -1422,6 +1425,7 @@ with tab3:
     if st.button("🗑️ Limpiar PDFs y campos", key="limpiar_tab3"):
         st.session_state.limpieza_tab3 += 1
         st.session_state.pop("saved_data_tab3", None)
+        st.session_state.pop("empaques_info_tab3", None)
         st.rerun()
 
     resumen_empaques = []
@@ -1436,6 +1440,7 @@ with tab3:
         st.info("📌 Empaques registrados: " + " | ".join(resumen_empaques))
     else:
         st.caption("No se han registrado cantidades de empaque.")
+    st.session_state["empaques_info_tab3"] = ", ".join(resumen_empaques) if resumen_empaques else "Ninguno especificado"
     lista_fuentes = [(f, f"Entrega_{re.search(r'\d+', f.name).group(0)}") for f in uploaded_files] if uploaded_files else []
     render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
 
