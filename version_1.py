@@ -1296,7 +1296,6 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
 # Interfaz Principal y Pestañas
 # ---------------------------------------------------------
 st.sidebar.markdown(f"👤 **Usuario:** {st.session_state.usuario_actual}")
-st.sidebar.markdown(f"🏢 **Cliente:** {st.session_state.empresa_actual}")
 
 if st.sidebar.button("Cerrar Sesión", use_container_width=True):
     st.session_state.autenticado = False
@@ -1359,23 +1358,21 @@ with tab1:
             st.warning("⚠️ No se encontraron coincidencias.")
 
 with tab2:
-    st.subheader("Búsqueda y Cálculo por Número de Entrega")
-    num_entregas_input = st.text_input("Números de Entrega:", placeholder="Ej: 20005021, 3171")
-    todos_los_items = []
-    encontrados = []
-    no_encontrados = []
-    if num_entregas_input.strip():
-        for num in [n.strip() for n in re.split(r'[\s,]+', num_entregas_input) if n.strip()][:50]:
-            items = obtener_datos_entrega_source(num)
-            if items:
-                todos_los_items.extend(items)
-                encontrados.append(num)
-            else:
-                no_encontrados.append(num)
-        if encontrados: st.success(f"✅ Procesados: {', '.join(encontrados)}")
-        if no_encontrados: st.error(f"❌ No encontrados: {', '.join(no_encontrados)}")
-    if todos_los_items:
-        render_procesamiento_despacho([(None, f"Entrega_{num}") for num in encontrados], "tab2", mostrar_exportacion=True)
+    st.subheader("Procesar Remisión / Consulta de Pesos")
+    st.info("ℹ️ Esta pestaña permite consultar pesos desde archivos PDF, sin generar reportes.")
+    uploaded_files_tab2 = st.file_uploader(
+        "Cargar archivos PDF de remisión",
+        type=["pdf"],
+        accept_multiple_files=True,
+        key="uploader_consulta_pesos"
+    )
+    lista_fuentes_tab2 = []
+    if uploaded_files_tab2:
+        for file in uploaded_files_tab2:
+            numero_entrega = re.search(r'\d+', file.name)
+            tag_entrega = numero_entrega.group(0) if numero_entrega else file.name
+            lista_fuentes_tab2.append((file, f"Entrega_{tag_entrega}"))
+    render_procesamiento_despacho(lista_fuentes_tab2, "tab2", mostrar_exportacion=False)
 
 with tab3:
     st.subheader("📤 Generador de Relación de Envio (Subir Archivos PDF)")
