@@ -9,6 +9,7 @@ import re
 import os
 import io
 import base64
+from xml.sax.saxutils import escape
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -530,11 +531,26 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
     tot_und = 0.0
     tot_mts = 0.0
     docs_unicos = []
+    filas_por_documento = []
+    destino_actual = None
 
     for idx, row in df_resumen.iterrows():
         cant_val = float(row["Cantidad"])
         desc_str = str(row["Descripción"])
         doc_num = str(row["Entrega"])
+        destino = str(row.get("Destino", "DESTINO GENERAL")).strip() or "DESTINO GENERAL"
+
+        if destino != destino_actual:
+            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=7)
+            ws.cell(current_row, 1, f"DESTINO: {destino}")
+            ws.cell(current_row, 1).font = font_arial_bold_10
+            ws.cell(current_row, 1).fill = fill_header_gray
+            ws.cell(current_row, 1).alignment = Alignment(horizontal="left")
+            for col in range(1, 8):
+                ws.cell(current_row, col).border = thin_border
+                ws.cell(current_row, col).fill = fill_header_gray
+            current_row += 1
+            destino_actual = destino
 
         if doc_num and doc_num not in docs_unicos:
             docs_unicos.append(doc_num)
@@ -568,6 +584,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
         ws.cell(current_row, 5, str(row["Código"])).alignment = Alignment(horizontal="center")
 
         p_tot = float(row.get("Peso Total (KG)", 0.0))
+        filas_por_documento.append((current_row, doc_num))
         ws.cell(current_row, 6, p_tot).alignment = Alignment(horizontal="right")
         ws.cell(current_row, 6).number_format = "#,##0.00"
         ws.cell(current_row, 7, doc_num).alignment = Alignment(horizontal="center", vertical="center")
@@ -579,16 +596,13 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
             c_cell.border = thin_border
         current_row += 1
 
-    start_r = 10
-    n_rows = len(df_resumen)
     i = 0
-    while i < n_rows:
-        doc_val = str(df_resumen.loc[i, "Entrega"])
-        j = i
-        while j < n_rows and str(df_resumen.loc[j, "Entrega"]) == doc_val:
+    while i < len(filas_por_documento):
+        r_first, doc_val = filas_por_documento[i]
+        j = i + 1
+        while j < len(filas_por_documento) and filas_por_documento[j][1] == doc_val:
             j += 1
-        r_first = start_r + i
-        r_last = start_r + j - 1
+        r_last = filas_por_documento[j - 1][0]
         if r_last > r_first:
             ws.merge_cells(start_row=r_first, start_column=7, end_row=r_last, end_column=7)
             cell_m = ws.cell(row=r_first, column=7)
@@ -797,11 +811,22 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     tot_mts = 0.0
     docs_unicos = []
     filas_por_documento = []
+    filas_por_destino = []
+    destino_actual = None
 
     for _, row in df_resumen.iterrows():
 
         p_tot = float(row.get("Peso Total (KG)", 0.0))
         doc_num = str(row["Entrega"])
+        destino = str(row.get("Destino", "DESTINO GENERAL")).strip() or "DESTINO GENERAL"
+
+        if destino != destino_actual:
+            filas_por_destino.append(len(d_table_data))
+            d_table_data.append([
+                Paragraph(f"<b>DESTINO: {escape(destino)}</b>", bold_style),
+                "", "", "", "", ""
+            ])
+            destino_actual = destino
 
         if doc_num and doc_num not in docs_unicos:
             docs_unicos.append(doc_num)
@@ -850,6 +875,12 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         ('ALIGN', (0,1), (1,-2), 'CENTER'),
         ('ALIGN', (5,1), (5,-2), 'CENTER'),
     ]
+    for row_index in filas_por_destino:
+        table_styles.extend([
+            ('SPAN', (0, row_index), (-1, row_index)),
+            ('BACKGROUND', (0, row_index), (-1, row_index), colors.HexColor('#D9D9D9')),
+            ('ALIGN', (0, row_index), (-1, row_index), 'LEFT'),
+        ])
     i = 0
     while i < len(filas_por_documento):
         r_start, doc_val = filas_por_documento[i]
@@ -954,6 +985,7 @@ def analizar_metadatos_documento(pdf_source):
                 texto_pagina1 = pdf.pages[0].extract_text() or ""
     except Exception as error:
         registrar_log(f"No se pudo identificar los metadatos del documento: {error}", "WARNING")
+        return "DOCUMENTO No. S/N", "DESTINO GENERAL"
 
     tipos_documento = [
         ("TRANSFERENCIA DE STOCK", "TRANSFERENCIA DE STOCK"),
@@ -1003,7 +1035,20 @@ def analizar_metadatos_documento(pdf_source):
             if match_archivo:
                 numero_doc = match_archivo.group(0)
 
-    return f"{tipo_doc} No. {numero_doc}"
+    doc_clean = f"{tipo_doc} No. {numero_doc}"
+
+    sucursal_destino = "DESTINO GENERAL"
+    match_nit = re.search(r"NIT\s*:\s*([^\n]+)", texto_pagina1, re.IGNORECASE)
+    if match_nit:
+        sucursal_destino = match_nit.group(1).strip()
+    else:
+        destinos = ["CARTAGENA", "BARRANQUILLA", "MEDELLÍN", "MEDELLIN", "CALI", "TRÁNSITO", "TRANSITO", "BOGOTÁ", "BOGOTA", "FUNZA"]
+        for linea in lineas:
+            if any(destino in linea for destino in destinos):
+                sucursal_destino = linea
+                break
+
+    return doc_clean, sucursal_destino
 
 # ---------------------------------------------------------
 # Extractor Inteligente de Materiales
@@ -1019,7 +1064,7 @@ def extraer_tabla_materiales(pdf_source, nombre_doc="Desconocido"):
                 txt = page.extract_text()
                 if txt:
                     texto_completo += txt + "\n"
-    except Exception as e:
+    except Exception as error:
         registrar_log(f"[{nombre_doc}] Error crítico de lectura de PDF con pdfplumber: {e}", "ERROR")
         st.warning(f"⚠️ El archivo `{nombre_doc}` está corrupto o incompleto en el origen. Se omitirá del cálculo.")
         return []
@@ -1214,19 +1259,22 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
 
     fuentes_unicas = []
     tags_vistos = set()
-    for fuente, tag in lista_fuentes:
-        if tag not in tags_vistos:
-            tags_vistos.add(tag)
-            fuentes_unicas.append((fuente, tag))
+    for fuente, doc_clean, destino in lista_fuentes:
+        clave = (doc_clean, destino)
+        if clave not in tags_vistos:
+            tags_vistos.add(clave)
+            fuentes_unicas.append((fuente, doc_clean, destino))
 
     todos_los_items = []
-    for pdf_source, tag_entrega in fuentes_unicas:
+    for pdf_source, doc_clean, destino in fuentes_unicas:
         try:
-            items_doc = extraer_tabla_materiales(pdf_source, nombre_doc=tag_entrega)
+            items_doc = extraer_tabla_materiales(pdf_source, nombre_doc=doc_clean)
+            for item in items_doc:
+                item["Destino"] = destino
             todos_los_items.extend(items_doc)
         except Exception as e:
-            st.error(f"Error procesando el documento `{tag_entrega}`: {e}")
-            registrar_log(f"Error en documento {tag_entrega}: {e}", "ERROR")
+            st.error(f"Error procesando el documento `{doc_clean}`: {e}")
+            registrar_log(f"Error en documento {doc_clean}: {e}", "ERROR")
 
     if todos_los_items:
         df_resumen = pd.DataFrame(todos_los_items)
@@ -1258,10 +1306,10 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
         if "Peso Unit. (KG)" in df_resumen.columns:
             columnas_orden.extend(["Peso Unit. (KG)", "Peso Total (KG)"])
 
-        df_resumen = df_resumen[columnas_orden]
+        df_resumen = df_resumen[columnas_orden + ["Destino"]]
 
         st.markdown(f"### 📋 Tabla Consolidada de Materiales ({len(fuentes_unicas)} Documentos)")
-        st.dataframe(df_resumen, use_container_width=True)
+        st.dataframe(df_resumen.drop(columns=["Destino"]), use_container_width=True)
 
         if "Peso Total (KG)" in df_resumen.columns:
             total_kg = pd.to_numeric(df_resumen["Peso Total (KG)"], errors='coerce').sum()
@@ -1457,7 +1505,8 @@ with tab2:
     lista_fuentes_tab2 = []
     if uploaded_files_tab2:
         for file in uploaded_files_tab2:
-            lista_fuentes_tab2.append((file, analizar_metadatos_documento(file)))
+            doc_clean, destino = analizar_metadatos_documento(file)
+            lista_fuentes_tab2.append((file, doc_clean, destino))
     render_procesamiento_despacho(lista_fuentes_tab2, "tab2", mostrar_exportacion=False)
 
 with tab3:
@@ -1477,7 +1526,11 @@ with tab3:
         st.session_state.pop("empaques_info_tab3", None)
         st.rerun()
 
-    lista_fuentes = [(f, analizar_metadatos_documento(f)) for f in uploaded_files] if uploaded_files else []
+    lista_fuentes = []
+    if uploaded_files:
+        for file in uploaded_files:
+            doc_clean, destino = analizar_metadatos_documento(file)
+            lista_fuentes.append((file, doc_clean, destino))
     df_resultado_t3 = render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
 
     if uploaded_files and df_resultado_t3 is not None and not df_resultado_t3.empty:
