@@ -9,6 +9,7 @@ import re
 import os
 import io
 import base64
+from xml.sax.saxutils import escape
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -796,8 +797,22 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     tot_und = 0.0
     tot_mts = 0.0
     docs_unicos = []
+    filas_por_documento = []
+    filas_por_destino = []
+    destino_actual = None
 
-    for _, row in df_resumen.iterrows():
+    for _, row in df_resumen.assign(
+        _Destino=df_resumen["Entrega"].astype(str).str.extract(r"\|\s*Destino:\s*(.*)$", expand=False).fillna("DESTINO GENERAL")
+    ).sort_values("_Destino", kind="stable").iterrows():
+        destino = str(row["_Destino"]).strip() or "DESTINO GENERAL"
+        if destino != destino_actual:
+            filas_por_destino.append((len(d_table_data), destino))
+            d_table_data.append([
+                Paragraph(f"<b>DESTINO: {escape(destino)}</b>", bold_style),
+                "", "", "", "", ""
+            ])
+            destino_actual = destino
+
         p_tot = float(row.get("Peso Total (KG)", 0.0))
         doc_num = re.sub(r'^[^\d]*', '', str(row["Entrega"]))
 
@@ -817,6 +832,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
             unidad_str = f"{cant_val:,.0f} UND"
             tot_und += cant_val
 
+        filas_por_documento.append((len(d_table_data), doc_num))
         d_table_data.append([
             Paragraph(f"<b>{unidad_str}</b>", normal_style),
             Paragraph(empaque_tag, normal_style),
@@ -847,16 +863,20 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         ('ALIGN', (0,1), (1,-2), 'CENTER'),
         ('ALIGN', (5,1), (5,-2), 'CENTER'),
     ]
+    for row_index, _ in filas_por_destino:
+        table_styles.extend([
+            ('SPAN', (0, row_index), (-1, row_index)),
+            ('BACKGROUND', (0, row_index), (-1, row_index), colors.HexColor('#D9D9D9')),
+            ('ALIGN', (0, row_index), (-1, row_index), 'LEFT'),
+        ])
 
-    n_rows = len(df_resumen)
     i = 0
-    while i < n_rows:
-        doc_val = re.sub(r'^[^\d]*', '', str(df_resumen.loc[i, "Entrega"]))
-        j = i
-        while j < n_rows and re.sub(r'^[^\d]*', '', str(df_resumen.loc[j, "Entrega"])) == doc_val:
+    while i < len(filas_por_documento):
+        r_start, doc_val = filas_por_documento[i]
+        j = i + 1
+        while j < len(filas_por_documento) and filas_por_documento[j][1] == doc_val:
             j += 1
-        r_start = i + 1
-        r_end = j
+        r_end = filas_por_documento[j - 1][0]
         if r_end > r_start:
             table_styles.append(('SPAN', (5, r_start), (5, r_end)))
         i = j
