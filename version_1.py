@@ -9,7 +9,6 @@ import re
 import os
 import io
 import base64
-from xml.sax.saxutils import escape
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -535,7 +534,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
     for idx, row in df_resumen.iterrows():
         cant_val = float(row["Cantidad"])
         desc_str = str(row["Descripción"])
-        doc_num = re.sub(r'^[^\d]*', '', str(row["Entrega"]))
+        doc_num = str(row["Entrega"])
 
         if doc_num and doc_num not in docs_unicos:
             docs_unicos.append(doc_num)
@@ -584,9 +583,9 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
     n_rows = len(df_resumen)
     i = 0
     while i < n_rows:
-        doc_val = re.sub(r'^[^\d]*', '', str(df_resumen.loc[i, "Entrega"]))
+        doc_val = str(df_resumen.loc[i, "Entrega"])
         j = i
-        while j < n_rows and re.sub(r'^[^\d]*', '', str(df_resumen.loc[j, "Entrega"])) == doc_val:
+        while j < n_rows and str(df_resumen.loc[j, "Entrega"]) == doc_val:
             j += 1
         r_first = start_r + i
         r_last = start_r + j - 1
@@ -798,23 +797,11 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     tot_mts = 0.0
     docs_unicos = []
     filas_por_documento = []
-    filas_por_destino = []
-    destino_actual = None
 
-    for _, row in df_resumen.assign(
-        _Destino=df_resumen["Entrega"].astype(str).str.extract(r"\|\s*Destino:\s*(.*)$", expand=False).fillna("DESTINO GENERAL")
-    ).sort_values("_Destino", kind="stable").iterrows():
-        destino = str(row["_Destino"]).strip() or "DESTINO GENERAL"
-        if destino != destino_actual:
-            filas_por_destino.append((len(d_table_data), destino))
-            d_table_data.append([
-                Paragraph(f"<b>DESTINO: {escape(destino)}</b>", bold_style),
-                "", "", "", "", ""
-            ])
-            destino_actual = destino
+    for _, row in df_resumen.iterrows():
 
         p_tot = float(row.get("Peso Total (KG)", 0.0))
-        doc_num = re.sub(r'^[^\d]*', '', str(row["Entrega"]))
+        doc_num = str(row["Entrega"])
 
         if doc_num and doc_num not in docs_unicos:
             docs_unicos.append(doc_num)
@@ -863,13 +850,6 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         ('ALIGN', (0,1), (1,-2), 'CENTER'),
         ('ALIGN', (5,1), (5,-2), 'CENTER'),
     ]
-    for row_index, _ in filas_por_destino:
-        table_styles.extend([
-            ('SPAN', (0, row_index), (-1, row_index)),
-            ('BACKGROUND', (0, row_index), (-1, row_index), colors.HexColor('#D9D9D9')),
-            ('ALIGN', (0, row_index), (-1, row_index), 'LEFT'),
-        ])
-
     i = 0
     while i < len(filas_por_documento):
         r_start, doc_val = filas_por_documento[i]
@@ -1023,18 +1003,7 @@ def analizar_metadatos_documento(pdf_source):
             if match_archivo:
                 numero_doc = match_archivo.group(0)
 
-    sucursal_destino = "DESTINO GENERAL"
-    match_nit = re.search(r"NIT\s*:\s*([^\n]+)", texto_pagina1, re.IGNORECASE)
-    if match_nit:
-        sucursal_destino = match_nit.group(1).strip()
-    else:
-        destinos = ["CARTAGENA", "BARRANQUILLA", "MEDELLÍN", "MEDELLIN", "CALI", "TRÁNSITO", "TRANSITO"]
-        for linea in lineas:
-            if any(destino in linea for destino in destinos):
-                sucursal_destino = linea
-                break
-
-    return f"{tipo_doc} No. {numero_doc} | Destino: {sucursal_destino}"
+    return f"{tipo_doc} No. {numero_doc}"
 
 # ---------------------------------------------------------
 # Extractor Inteligente de Materiales
