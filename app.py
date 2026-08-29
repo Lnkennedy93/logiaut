@@ -988,16 +988,16 @@ def analizar_metadatos_documento(pdf_source):
         return "DOCUMENTO No. S/N", "DESTINO GENERAL"
 
     tipos_documento = [
-        ("TRANSFERENCIA DE STOCK", "TRANSFERENCIA DE STOCK"),
-        ("ENTREGA DE MERCANCÍA", "ENTREGA DE MERCANCÍA"),
-        ("ENTREGA DE MERCANCIA", "ENTREGA DE MERCANCÍA"),
-        ("NOTA CRÉDITO", "NOTA CRÉDITO"),
-        ("NOTA CREDITO", "NOTA CRÉDITO"),
-        ("NOTA DÉBITO", "NOTA DÉBITO"),
-        ("NOTA DEBITO", "NOTA DÉBITO"),
-        ("REMISIÓN", "REMISIÓN"),
-        ("REMISION", "REMISIÓN"),
-        ("FACTURA", "FACTURA"),
+        ("TRANSFERENCIA DE STOCK", "TS"),
+        ("ENTREGA DE MERCANCÍA", "EDM"),
+        ("ENTREGA DE MERCANCIA", "EDM"),
+        ("NOTA CRÉDITO", "NC"),
+        ("NOTA CREDITO", "NC"),
+        ("NOTA DÉBITO", "ND"),
+        ("NOTA DEBITO", "ND"),
+        ("REMISIÓN", "REM"),
+        ("REMISION", "REM"),
+        ("FACTURA", "FACT"),
     ]
     patron_numero = r"(?:NO\.?|N[º°]|NUMERO|NÚMERO)\s*[:#]?\s*(\d{4,10})"
     lineas = [re.sub(r"\s+", " ", linea).strip().upper() for linea in texto_pagina1.splitlines() if linea.strip()]
@@ -1065,7 +1065,7 @@ def extraer_tabla_materiales(pdf_source, nombre_doc="Desconocido"):
                 if txt:
                     texto_completo += txt + "\n"
     except Exception as error:
-        registrar_log(f"[{nombre_doc}] Error crítico de lectura de PDF con pdfplumber: {e}", "ERROR")
+        registrar_log(f"[{nombre_doc}] Error crítico de lectura de PDF con pdfplumber: {error}", "ERROR")
         st.warning(f"⚠️ El archivo `{nombre_doc}` está corrupto o incompleto en el origen. Se omitirá del cálculo.")
         return []
 
@@ -1111,6 +1111,12 @@ def extraer_tabla_materiales(pdf_source, nombre_doc="Desconocido"):
 
             desc_limpia = re.sub(r'(?:UND|MTS|MT|UNDS)\s*$', '', desc_bruta, flags=re.IGNORECASE).strip()
             desc_limpia = re.sub(r'([a-záéíóúÑA-Z])(UND|MTS|MT|UNDS)\b', r'\1', desc_limpia, flags=re.IGNORECASE).strip()
+            desc_limpia = re.sub(
+                r'^[\s.:,\-]*\d+(?:[.,]\d+)?\s*(?:UND|MTS|MT|UNDS|UNIDAD)\b[\s.:,\-]*',
+                '',
+                desc_limpia,
+                flags=re.IGNORECASE
+            ).strip()
             desc_limpia = re.sub(r'\s+', ' ', desc_limpia).strip()
 
             if not any(item['Código'] == codigo for item in items):
