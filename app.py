@@ -1342,7 +1342,8 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                         "d_marca": "",
                         "d_celular": "",
                         "d_transp": "",
-                        "elab_nombre": "LOGÍSTICA TUVACOL S.A."
+                        "elab_nombre": "LOGÍSTICA TUVACOL S.A.",
+                        "empaques_info": "Ninguno especificado"
                     }
 
                 with st.form(key=f"form_despacho_{tab_key}"):
@@ -1436,7 +1437,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                         "placa": saved["d_placa"], "marca": saved["d_marca"], "transportadora": saved["d_transp"]
                     }
                     elaborado_info = {"nombre": saved["elab_nombre"]}
-                    empaques_info = saved["empaques_info"]
+                    empaques_info = saved.get("empaques_info", "Ninguno especificado")
 
                     excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info)
                     pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info)
