@@ -1550,13 +1550,13 @@ st.title("🔄 FlowShift")
 st.markdown("<p style='color: #666; font-size: 16px; margin-top: -15px;'><i>La evolución inteligente de tu gestión administrativa.</i></p>", unsafe_allow_html=True)
 
 if es_dev_autenticado:
-    tab1, tab2, tab3, tab_rutas, tab_extractor, tab_maestro, tab4 = st.tabs([
-        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío",
+    tab1, tab2, tab3, tab_consulta, tab_rutas, tab_extractor, tab_maestro, tab4 = st.tabs([
+        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío", "🔎 Consultar Documento",
         "Gestión de Rutas", "Clasificador de Rutas", "🗂️ Registro Maestro", "📜 Logs"
     ])
 else:
-    tab1, tab2, tab3 = st.tabs([
-        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío"
+    tab1, tab2, tab3, tab_consulta = st.tabs([
+        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío", "🔎 Consultar Documento"
     ])
 
 with tab1:
@@ -1627,6 +1627,49 @@ with tab3:
             doc_clean, destino = analizar_metadatos_documento(file)
             lista_fuentes.append((file, doc_clean, destino))
     df_resultado_t3 = render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
+
+with tab_consulta:
+    st.subheader("🔎 Consultar Documento Original")
+    st.caption("Busque una Transferencia de Stock (TS), Entrega de Mercancía (EDM) o referencia guardada en el historial.")
+    busqueda_doc = st.text_input("Número de documento o referencia", placeholder="Ej. 4996 o 20006855", key="busqueda_documento_historial")
+
+    if st.button("🔍 Buscar en Historial", key="btn_buscar_historial"):
+        termino = busqueda_doc.strip()
+        if not termino:
+            st.warning("⚠️ Ingrese un número de documento antes de buscar.")
+        else:
+            try:
+                response = (
+                    supabase.table("historial_envios")
+                    .select("*")
+                    .ilike("observaciones", f"%{termino}%")
+                    .order("consecutivo", desc=True)
+                    .execute()
+                )
+                registros = response.data or []
+                if not registros:
+                    st.warning(f"⚠️ No se encontró ningún despacho asociado a '{termino}'.")
+                else:
+                    st.success(f"✅ Se encontraron {len(registros)} despacho(s) asociado(s) a '{termino}'.")
+                    for registro in registros:
+                        consecutivo = registro.get("consecutivo", registro.get("id", "N/A"))
+                        st.markdown(
+                            f"""
+                            <div class="product-card">
+                                <h4 style="color: #1F3864; margin-top: 0;">📄 Formato GID-F-010 · No.{str(consecutivo).zfill(8)}</h4>
+                                <p><b>👤 Usuario:</b> {registro.get('usuario', 'N/A')}</p>
+                                <p><b>🚚 Conductor:</b> {registro.get('conductor_nombre', 'N/A')} · <b>Cédula:</b> {registro.get('conductor_cedula', 'N/A')}</p>
+                                <p><b>🚛 Placa:</b> {registro.get('vehiculo_placa', 'N/A')} · <b>Empresa:</b> {registro.get('empresa_transporte', 'N/A')}</p>
+                                <p><b>📍 Destinos:</b> {registro.get('destinos', 'N/A')}</p>
+                                <p><b>📦 Peso total:</b> {float(registro.get('peso_total_kg') or 0):,.2f} KG · <b>Documentos:</b> {registro.get('total_documentos', 0)}</p>
+                                <p><b>📝 Observaciones:</b> {registro.get('observaciones', 'N/A')}</p>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+            except Exception as e:
+                registrar_log(f"Error consultando historial por documento: {e}", "ERROR")
+                st.error(f"❌ Error al consultar la base de datos: {e}")
 
 if es_dev_autenticado:
     with tab_rutas:
