@@ -1656,13 +1656,12 @@ with tab_consulta:
                         st.markdown(
                             f"""
                             <div class="product-card">
-                                <h4 style="color: #1F3864; margin-top: 0;">📄 Formato GID-F-010 · No.{str(consecutivo).zfill(8)}</h4>
-                                <p><b>👤 Usuario:</b> {registro.get('usuario', 'N/A')}</p>
-                                <p><b>🚚 Conductor:</b> {registro.get('conductor_nombre', 'N/A')} · <b>Cédula:</b> {registro.get('conductor_cedula', 'N/A')}</p>
-                                <p><b>🚛 Placa:</b> {registro.get('vehiculo_placa', 'N/A')} · <b>Empresa:</b> {registro.get('empresa_transporte', 'N/A')}</p>
-                                <p><b>📍 Destinos:</b> {registro.get('destinos', 'N/A')}</p>
-                                <p><b>📦 Peso total:</b> {float(registro.get('peso_total_kg') or 0):,.2f} KG · <b>Documentos:</b> {registro.get('total_documentos', 0)}</p>
-                                <p><b>📝 Observaciones:</b> {registro.get('observaciones', 'N/A')}</p>
+                                <h4 style="color: #1F3864; margin-top: 0;">Datos del vehículo y conductor</h4>
+                                <p><b>Conductor:</b> {registro.get('conductor_nombre', 'N/A')}</p>
+                                <p><b>Cédula:</b> {registro.get('conductor_cedula', 'N/A')}</p>
+                                <p><b>Placa:</b> {registro.get('vehiculo_placa', 'N/A')}</p>
+                                <p><b>Peso total:</b> {float(registro.get('peso_total_kg') or 0):,.2f} KG</p>
+                                <p><b>Documentos:</b> {registro.get('total_documentos', 0)}</p>
                             </div>
                             """,
                             unsafe_allow_html=True
