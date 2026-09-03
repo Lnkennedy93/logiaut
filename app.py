@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import pandas as pd
 import pypdf
 import pdfplumber
@@ -1332,7 +1332,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
             if mostrar_exportacion:
                 st.markdown("---")
                 
-                if f"saved_data_{tab_key}" not in st.session_state:
+                if f"saved_data_{tab_key}" not in st.session_state or not isinstance(st.session_state[f"saved_data_{tab_key}"], dict):
                     st.session_state[f"saved_data_{tab_key}"] = {
                         "dest_name": "DESPACHOS CLIENTE / REMISIÓN",
                         "dest_address": "DIRECCIÓN REGISTRADA EN REMISIONES",
@@ -1367,62 +1367,102 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                         d_transp_input = st.text_input("Empresa Transportadora:", value=st.session_state[f"saved_data_{tab_key}"]["d_transp"])
 
                     st.markdown("---")
+                    st.markdown("### 📦 Cantidad de Empaques por Tipo")
+                    st.caption("Indique la cantidad utilizada para cada tipo de empaque en este despacho.")
+                    empaque_cols1 = st.columns(3)
+                    with empaque_cols1[0]:
+                        cant_estibas = st.number_input("Estibas", min_value=0, value=0, step=1, key=f"estiba_{tab_key}_{st.session_state.limpieza_tab3}")
+                    with empaque_cols1[1]:
+                        cant_guacales = st.number_input("Guacales", min_value=0, value=0, step=1, key=f"guacal_{tab_key}_{st.session_state.limpieza_tab3}")
+                    with empaque_cols1[2]:
+                        cant_cajas = st.number_input("Cajas", min_value=0, value=0, step=1, key=f"caja_{tab_key}_{st.session_state.limpieza_tab3}")
+
+                    empaque_cols2 = st.columns(3)
+                    with empaque_cols2[0]:
+                        cant_sobres = st.number_input("Sobres", min_value=0, value=0, step=1, key=f"sobre_{tab_key}_{st.session_state.limpieza_tab3}")
+                    with empaque_cols2[1]:
+                        cant_paquetes = st.number_input("Paquetes", min_value=0, value=0, step=1, key=f"paquete_{tab_key}_{st.session_state.limpieza_tab3}")
+                    with empaque_cols2[2]:
+                        cant_tubos = st.number_input("Tubos", min_value=0, value=0, step=1, key=f"tubo_{tab_key}_{st.session_state.limpieza_tab3}")
+
+                    resumen_empaques = []
+                    if cant_estibas > 0: resumen_empaques.append(f"{cant_estibas} Estiba(s)")
+                    if cant_guacales > 0: resumen_empaques.append(f"{cant_guacales} Guacal(es)")
+                    if cant_cajas > 0: resumen_empaques.append(f"{cant_cajas} Caja(s)")
+                    if cant_sobres > 0: resumen_empaques.append(f"{cant_sobres} Sobre(s)")
+                    if cant_paquetes > 0: resumen_empaques.append(f"{cant_paquetes} Paquete(s)")
+                    if cant_tubos > 0: resumen_empaques.append(f"{cant_tubos} Tubo(s)")
+                    empaques_input = ", ".join(resumen_empaques) if resumen_empaques else "Ninguno especificado"
+
+                    st.markdown("---")
                     st.markdown("### ✍️ Información de Elaboración")
                     elab_nombre_input = st.text_input("Elaborado por (Nombre y Cargo):", value=st.session_state[f"saved_data_{tab_key}"]["elab_nombre"])
 
                     submitted = st.form_submit_button(label="💾 Guardar Cambios")
 
                     if submitted:
-                        st.session_state[f"saved_data_{tab_key}"] = {
-                            "dest_name": dest_name_input.strip(),
-                            "dest_address": dest_address_input.strip(),
-                            "d_nombre": d_nombre_input.strip(),
-                            "d_placa": d_placa_input.strip(),
-                            "d_cedula": d_cedula_input.strip(),
-                            "d_marca": d_marca_input.strip(),
-                            "d_celular": d_celular_input.strip(),
-                            "d_transp": d_transp_input.strip(),
-                            "elab_nombre": elab_nombre_input.strip()
-                        }
-                        st.success("✅ ¡Cambios guardados exitosamente!")
+                        campos_obligatorios = [
+                            dest_name_input, dest_address_input, d_nombre_input,
+                            d_placa_input, d_cedula_input, d_marca_input,
+                            d_celular_input, d_transp_input, elab_nombre_input
+                        ]
+                        if not all(campo.strip() for campo in campos_obligatorios):
+                            st.session_state[f"saved_data_{tab_key}"] = None
+                            st.error("❌ Faltan campos obligatorios por llenar. Complete los datos del destinatario, conductor, vehículo y elaboración antes de guardar.")
+                        else:
+                            st.session_state[f"saved_data_{tab_key}"] = {
+                                "dest_name": dest_name_input.strip(),
+                                "dest_address": dest_address_input.strip(),
+                                "d_nombre": d_nombre_input.strip(),
+                                "d_placa": d_placa_input.strip(),
+                                "d_cedula": d_cedula_input.strip(),
+                                "d_marca": d_marca_input.strip(),
+                                "d_celular": d_celular_input.strip(),
+                                "d_transp": d_transp_input.strip(),
+                                "elab_nombre": elab_nombre_input.strip(),
+                                "empaques_info": empaques_input
+                            }
+                            st.success("✅ ¡Datos guardados y validados correctamente!")
 
                 saved = st.session_state[f"saved_data_{tab_key}"]
-                dest_info = {"nombre": saved["dest_name"], "direccion": saved["dest_address"]}
-                driver_info = {
-                    "nombre": saved["d_nombre"], "cedula": saved["d_cedula"], "celular": saved["d_celular"],
-                    "placa": saved["d_placa"], "marca": saved["d_marca"], "transportadora": saved["d_transp"]
-                }
-                elaborado_info = {"nombre": saved["elab_nombre"]}
-                empaques_info = st.session_state.get("empaques_info_tab3", "Ninguno especificado")
-
                 st.markdown("---")
                 st.markdown("### 📥 Exportar y Previsualizar Formato Oficial TUVACOL (GID-F-010)")
-                
-                excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info)
-                pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info)
+                if saved is None:
+                    st.warning("🔒 Complete todos los campos obligatorios y haga clic en **'Guardar Cambios'** para habilitar la previsualización y las descargas.")
+                else:
+                    dest_info = {"nombre": saved["dest_name"], "direccion": saved["dest_address"]}
+                    driver_info = {
+                        "nombre": saved["d_nombre"], "cedula": saved["d_cedula"], "celular": saved["d_celular"],
+                        "placa": saved["d_placa"], "marca": saved["d_marca"], "transportadora": saved["d_transp"]
+                    }
+                    elaborado_info = {"nombre": saved["elab_nombre"]}
+                    empaques_info = saved["empaques_info"]
 
-                with st.expander("👁️ Previsualizar Documento Generado (PDF)", expanded=False):
-                    base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-                    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600px" type="application/pdf"></iframe>'
-                    st.markdown(pdf_display, unsafe_allow_html=True)
+                    excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info)
+                    pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info)
 
-                col_exp1, col_exp2 = st.columns(2)
-                with col_exp1:
-                    st.download_button(
-                        label="📊 Descargar Formato Oficial Excel (.xlsx)",
-                        data=excel_bytes,
-                        file_name=f"Relacion_Envio_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True, key=f"dl_excel_{tab_key}"
-                    )
-                with col_exp2:
-                    st.download_button(
-                        label="🖨️ Descargar Formato Oficial PDF (Imprimible)",
-                        data=pdf_bytes,
-                        file_name=f"Relacion_Envio_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                        mime="application/pdf",
-                        use_container_width=True, key=f"dl_pdf_{tab_key}"
-                    )
+                    with st.expander("👁️ Previsualizar Documento Generado (PDF)", expanded=False):
+                        base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+                        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600px" type="application/pdf"></iframe>'
+                        st.markdown(pdf_display, unsafe_allow_html=True)
+
+                    col_exp1, col_exp2 = st.columns(2)
+                    with col_exp1:
+                        st.download_button(
+                            label="📊 Descargar Formato Oficial Excel (.xlsx)",
+                            data=excel_bytes,
+                            file_name=f"Relacion_Envio_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True, key=f"dl_excel_{tab_key}"
+                        )
+                    with col_exp2:
+                        st.download_button(
+                            label="🖨️ Descargar Formato Oficial PDF (Imprimible)",
+                            data=pdf_bytes,
+                            file_name=f"Relacion_Envio_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True, key=f"dl_pdf_{tab_key}"
+                        )
             return df_resumen
     else:
         st.warning("⚠️ No se encontraron productos válidos en los documentos seleccionados.")
@@ -1538,40 +1578,6 @@ with tab3:
             doc_clean, destino = analizar_metadatos_documento(file)
             lista_fuentes.append((file, doc_clean, destino))
     df_resultado_t3 = render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
-
-    if uploaded_files and df_resultado_t3 is not None and not df_resultado_t3.empty:
-        st.markdown("---")
-        st.markdown("#### 📦 Cantidad de Empaques por Tipo")
-        st.caption("Indique la cantidad utilizada para cada tipo de empaque en este despacho.")
-        empaque_cols1 = st.columns(3)
-        with empaque_cols1[0]:
-            cant_estibas = st.number_input("Estibas", min_value=0, value=0, step=1, key=f"estiba_{st.session_state.limpieza_tab3}")
-        with empaque_cols1[1]:
-            cant_guacales = st.number_input("Guacales", min_value=0, value=0, step=1, key=f"guacal_{st.session_state.limpieza_tab3}")
-        with empaque_cols1[2]:
-            cant_cajas = st.number_input("Cajas", min_value=0, value=0, step=1, key=f"caja_{st.session_state.limpieza_tab3}")
-
-        empaque_cols2 = st.columns(3)
-        with empaque_cols2[0]:
-            cant_sobres = st.number_input("Sobres", min_value=0, value=0, step=1, key=f"sobre_{st.session_state.limpieza_tab3}")
-        with empaque_cols2[1]:
-            cant_paquetes = st.number_input("Paquetes", min_value=0, value=0, step=1, key=f"paquete_{st.session_state.limpieza_tab3}")
-        with empaque_cols2[2]:
-            cant_tubos = st.number_input("Tubos", min_value=0, value=0, step=1, key=f"tubo_{st.session_state.limpieza_tab3}")
-
-        resumen_empaques = []
-        if cant_estibas > 0: resumen_empaques.append(f"{cant_estibas} Estiba(s)")
-        if cant_guacales > 0: resumen_empaques.append(f"{cant_guacales} Guacal(es)")
-        if cant_cajas > 0: resumen_empaques.append(f"{cant_cajas} Caja(s)")
-        if cant_sobres > 0: resumen_empaques.append(f"{cant_sobres} Sobre(s)")
-        if cant_paquetes > 0: resumen_empaques.append(f"{cant_paquetes} Paquete(s)")
-        if cant_tubos > 0: resumen_empaques.append(f"{cant_tubos} Tubo(s)")
-
-        st.session_state["empaques_info_tab3"] = ", ".join(resumen_empaques) if resumen_empaques else "Ninguno especificado"
-        if resumen_empaques:
-            st.info("📌 Empaques registrados: " + " | ".join(resumen_empaques))
-        else:
-            st.caption("No se han registrado cantidades de empaque.")
 
 if es_dev_autenticado:
     with tab_rutas:
