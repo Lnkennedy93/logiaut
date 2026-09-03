@@ -213,6 +213,32 @@ def validar_en_supabase(correo, password):
         st.error(f"Error de conexión con la base de datos: {e}")
         return None
 
+def registrar_envio_en_supabase(saved_data, df_resumen, observaciones_texto):
+    try:
+        total_kg = float(df_resumen["Peso Total (KG)"].sum())
+        total_docs = len(set(df_resumen["Entrega"]))
+        destinos_str = ", ".join(sorted(set(df_resumen["Destino"].astype(str))))
+
+        payload = {
+            "usuario": st.session_state.get("usuario_actual", "Desconocido"),
+            "peso_total_kg": total_kg,
+            "total_documentos": total_docs,
+            "conductor_nombre": saved_data.get("d_nombre", ""),
+            "conductor_cedula": saved_data.get("d_cedula", ""),
+            "vehiculo_placa": saved_data.get("d_placa", ""),
+            "empresa_transporte": saved_data.get("d_transp", ""),
+            "destinos": destinos_str,
+            "observaciones": observaciones_texto
+        }
+        response = supabase.table("historial_envios").insert(payload).execute()
+        if response.data:
+            registro = response.data[0]
+            return registro.get("consecutivo", registro.get("id"))
+        return None
+    except Exception as e:
+        registrar_log(f"Error registrando envío en Supabase: {e}", "ERROR")
+        return None
+
 def pantalla_login():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -408,7 +434,7 @@ def cargar_bd_local(ruta_archivo):
 # ---------------------------------------------------------
 # Generadores Excel y PDF (GID-F-010)
 # ---------------------------------------------------------
-def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None):
+def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None, consecutivo_num=None):
     if driver_info is None: driver_info = {}
     if dest_info is None: dest_info = {}
     if elaborado_info is None: elaborado_info = {}
@@ -490,7 +516,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
     ws["C7"].font = font_arial_bold_10
     ws["C7"].alignment = Alignment(horizontal="center")
 
-    num_relacion = f"No.{datetime.datetime.now().strftime('%m%d%H')}"
+    num_relacion = f"No.{str(consecutivo_num).zfill(8)}" if consecutivo_num is not None else "No.PENDIENTE"
     ws["E7"] = num_relacion
     ws["E7"].font = font_arial_bold_11
     ws["E7"].alignment = Alignment(horizontal="center")
@@ -725,7 +751,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
     return output.getvalue()
 
 
-def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None):
+def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None, consecutivo_num=None):
     if driver_info is None: driver_info = {}
     if dest_info is None: dest_info = {}
     if elaborado_info is None: elaborado_info = {}
@@ -775,7 +801,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     elements.append(Spacer(1, 4))
 
     fecha_act = datetime.datetime.now().strftime("%d-%m-%Y")
-    num_rel = f"No.00{datetime.datetime.now().strftime('%m%d%H')}"
+    num_rel = f"No.{str(consecutivo_num).zfill(8)}" if consecutivo_num is not None else "No.PENDIENTE"
     m_data = [
         [
             Paragraph("<b>Responsable / Cargo:</b>", normal_style),
@@ -1409,6 +1435,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                         ]
                         if not all(campo.strip() for campo in campos_obligatorios):
                             st.session_state[f"saved_data_{tab_key}"] = None
+                            st.session_state.pop(f"consecutivo_num_{tab_key}", None)
                             st.error("❌ Faltan campos obligatorios por llenar. Complete los datos del destinatario, conductor, vehículo y elaboración antes de guardar.")
                         else:
                             st.session_state[f"saved_data_{tab_key}"] = {
@@ -1423,12 +1450,27 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                                 "elab_nombre": elab_nombre_input.strip(),
                                 "empaques_info": empaques_input
                             }
-                            st.success("✅ ¡Datos guardados y validados correctamente!")
+                            observaciones_guardado = (
+                                f"TOTAL: {df_resumen['Cantidad'].sum():,.0f} UND, "
+                                f"{total_kg:,.2f} KG | DOCS: {', '.join(sorted(set(df_resumen['Entrega'].astype(str))))} | "
+                                f"Empaques: {empaques_input}"
+                            )
+                            consecutivo_num = registrar_envio_en_supabase(
+                                st.session_state[f"saved_data_{tab_key}"],
+                                df_resumen,
+                                observaciones_guardado
+                            )
+                            if consecutivo_num is None:
+                                st.session_state[f"saved_data_{tab_key}"] = None
+                                st.error("❌ No fue posible registrar el envío en Supabase. Los formatos siguen bloqueados.")
+                            else:
+                                st.session_state[f"consecutivo_num_{tab_key}"] = consecutivo_num
+                                st.success(f"✅ Datos guardados. Consecutivo asignado: No.{str(consecutivo_num).zfill(8)}")
 
                 saved = st.session_state[f"saved_data_{tab_key}"]
                 st.markdown("---")
                 st.markdown("### 📥 Exportar y Previsualizar Formato Oficial TUVACOL (GID-F-010)")
-                if saved is None:
+                if saved is None or st.session_state.get(f"consecutivo_num_{tab_key}") is None:
                     st.warning("🔒 Complete todos los campos obligatorios y haga clic en **'Guardar Cambios'** para habilitar la previsualización y las descargas.")
                 else:
                     dest_info = {"nombre": saved["dest_name"], "direccion": saved["dest_address"]}
@@ -1439,13 +1481,18 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     elaborado_info = {"nombre": saved["elab_nombre"]}
                     empaques_info = saved.get("empaques_info", "Ninguno especificado")
 
-                    excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info)
-                    pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info)
+                    consecutivo_num = st.session_state.get(f"consecutivo_num_{tab_key}")
+                    excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info, consecutivo_num)
+                    pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info, consecutivo_num)
 
                     with st.expander("👁️ Previsualizar Documento Generado (PDF)", expanded=False):
                         base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
                         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600px" type="application/pdf"></iframe>'
                         st.markdown(pdf_display, unsafe_allow_html=True)
+
+                    registro_mensaje = st.session_state.pop("registro_descarga_mensaje", None)
+                    if registro_mensaje:
+                        st.info(registro_mensaje)
 
                     col_exp1, col_exp2 = st.columns(2)
                     with col_exp1:
@@ -1571,6 +1618,7 @@ with tab3:
         st.session_state.limpieza_tab3 += 1
         st.session_state.pop("saved_data_tab3", None)
         st.session_state.pop("empaques_info_tab3", None)
+        st.session_state.pop("consecutivo_num_tab3", None)
         st.rerun()
 
     lista_fuentes = []
