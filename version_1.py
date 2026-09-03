@@ -840,20 +840,10 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     filas_por_destino = []
     destino_actual = None
 
-    for _, row in df_resumen.iterrows():
-
+    def agregar_fila_material(row):
+        nonlocal tot_und, tot_mts
         p_tot = float(row.get("Peso Total (KG)", 0.0))
         doc_num = str(row["Entrega"])
-        destino = str(row.get("Destino", "DESTINO GENERAL")).strip() or "DESTINO GENERAL"
-
-        if destino != destino_actual:
-            filas_por_destino.append(len(d_table_data))
-            d_table_data.append([
-                Paragraph(f"<b>DESTINO: {escape(destino)}</b>", bold_style),
-                "", "", "", "", ""
-            ])
-            destino_actual = destino
-
         if doc_num and doc_num not in docs_unicos:
             docs_unicos.append(doc_num)
 
@@ -879,6 +869,33 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
             Paragraph(f"<b>{p_tot:,.2f}</b>", normal_style),
             Paragraph(f"<b>{doc_num}</b>", normal_style)
         ])
+
+    entregas = df_resumen["Entrega"].astype(str)
+    df_edm = df_resumen[entregas.str.upper().str.startswith("EDM", na=False)]
+    df_otros = df_resumen[~entregas.str.upper().str.startswith("EDM", na=False)]
+
+    if not df_edm.empty:
+        edm_nums = []
+        for entrega in df_edm["Entrega"].unique():
+            coincidencia = re.search(r"\d+", str(entrega))
+            edm_nums.append(coincidencia.group() if coincidencia else str(entrega))
+        edm_str = ", ".join(edm_nums)
+        filas_por_destino.append(len(d_table_data))
+        d_table_data.append([
+            Paragraph(f"<b>ENTREGA DE MERCANCIA: {escape(edm_str)}</b>", bold_style),
+            "", "", "", "", ""
+        ])
+        for _, row in df_edm.iterrows():
+            agregar_fila_material(row)
+
+    for destino, group_dest in df_otros.groupby("Destino"):
+        filas_por_destino.append(len(d_table_data))
+        d_table_data.append([
+            Paragraph(f"<b>DESTINO: {escape(str(destino))}</b>", bold_style),
+            "", "", "", "", ""
+        ])
+        for _, row in group_dest.iterrows():
+            agregar_fila_material(row)
 
     docs_str = ", ".join(docs_unicos)
     obs_texto = f"Observaciones: TOTAL: {tot_und:,.0f} UND, {tot_mts:,.0f} MTS | DOCS: {docs_str} | Empaques: {empaques_info}"
@@ -1653,6 +1670,7 @@ with tab_consulta:
                     st.success(f"✅ Se encontraron {len(registros)} despacho(s) asociado(s) a '{termino}'.")
                     for registro in registros:
                         consecutivo = registro.get("consecutivo", registro.get("id", "N/A"))
+                        fecha = registro.get("fecha") or registro.get("created_at") or "N/A"
                         st.markdown(
                             f"""
                             <div class="product-card">
@@ -1660,6 +1678,7 @@ with tab_consulta:
                                 <p><b>Conductor:</b> {registro.get('conductor_nombre', 'N/A')}</p>
                                 <p><b>Cédula:</b> {registro.get('conductor_cedula', 'N/A')}</p>
                                 <p><b>Placa:</b> {registro.get('vehiculo_placa', 'N/A')}</p>
+                                <p><b>Fecha:</b> {fecha}</p>
                                 <p><b>Peso total:</b> {float(registro.get('peso_total_kg') or 0):,.2f} KG</p>
                                 <p><b>Documentos:</b> {registro.get('total_documentos', 0)}</p>
                             </div>
