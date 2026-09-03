@@ -5,6 +5,7 @@ import pdfplumber
 import urllib.request
 import logging
 import datetime
+from datetime import timezone, timedelta
 import re
 import os
 import io
@@ -238,6 +239,19 @@ def registrar_envio_en_supabase(saved_data, df_resumen, observaciones_texto):
     except Exception as e:
         registrar_log(f"Error registrando envío en Supabase: {e}", "ERROR")
         return None
+
+def formatear_fecha_colombia(fecha_raw):
+    if not fecha_raw:
+        return "N/A"
+    try:
+        fecha_texto = str(fecha_raw).replace("Z", "+00:00")
+        fecha = datetime.datetime.fromisoformat(fecha_texto)
+        if fecha.tzinfo is None:
+            fecha = fecha.replace(tzinfo=timezone.utc)
+        hora_colombia = timezone(timedelta(hours=-5))
+        return fecha.astimezone(hora_colombia).strftime("%d-%m-%Y %H:%M:%S")
+    except (TypeError, ValueError):
+        return str(fecha_raw)[:19].replace("T", " ") or "N/A"
 
 def pantalla_login():
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -761,17 +775,17 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
-        rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20
+        rightMargin=15, leftMargin=15, topMargin=15, bottomMargin=15
     )
     elements = []
 
     styles = getSampleStyleSheet()
-    normal_style = ParagraphStyle('Normal8', parent=styles['Normal'], fontSize=7.5, leading=9)
+    normal_style = ParagraphStyle('Normal8', parent=styles['Normal'], fontSize=7.5, leading=8)
     bold_style = ParagraphStyle('Bold8', parent=normal_style, fontName='Helvetica-Bold')
     
     brand_title_style = ParagraphStyle(
         'BrandTitle10', parent=styles['Normal'], 
-        fontName='Helvetica-Bold', fontSize=10, leading=12, alignment=1,
+        fontName='Helvetica-Bold', fontSize=10, leading=10, alignment=1,
         textColor=colors.HexColor('#1F3864')
     )
 
@@ -796,9 +810,10 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         ('GRID', (0,0), (-1,-1), 1, colors.black),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('TOPPADDING', (0,0), (-1,-1), 2), ('BOTTOMPADDING', (0,0), (-1,-1), 2),
     ]))
     elements.append(t_header)
-    elements.append(Spacer(1, 4))
+    elements.append(Spacer(1, 2))
 
     fecha_act = datetime.datetime.now().strftime("%d-%m-%Y")
     num_rel = f"No.{str(consecutivo_num).zfill(8)}" if consecutivo_num is not None else "No.PENDIENTE"
@@ -818,10 +833,10 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         ('BACKGROUND', (3,0), (3,0), colors.HexColor('#D9D9D9')),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('ALIGN', (1,0), (2,0), 'CENTER'),
+        ('TOPPADDING', (0,0), (-1,-1), 2), ('BOTTOMPADDING', (0,0), (-1,-1), 2),
     ]))
     elements.append(t_meta)
-    elements.append(Spacer(1, 4))
-
+    elements.append(Spacer(1, 2))
     d_table_data = [
         [
             Paragraph("<b>Unidades enviadas</b>", normal_style),
@@ -938,7 +953,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     t_data = Table(d_table_data, colWidths=[65, 65, 245, 75, 62, 60])
     t_data.setStyle(TableStyle(table_styles))
     elements.append(t_data)
-    elements.append(Spacer(1, 4))
+    elements.append(Spacer(1, 2))
 
     log_data = [
         [Paragraph("<b>Datos del Remitente</b>", bold_style), "", Paragraph("<b>Datos del Destinatario</b>", bold_style), ""],
@@ -962,6 +977,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         ('SPAN', (2,0), (3,0)),
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#D9D9D9')),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 2), ('BOTTOMPADDING', (0,0), (-1,-1), 2),
     ]))
     elements.append(t_log)
     elements.append(Spacer(1, 4))
@@ -989,9 +1005,10 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         ('SPAN', (1,3), (5,3)),
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#BFBFBF')),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 2), ('BOTTOMPADDING', (0,0), (-1,-1), 2),
     ]))
     elements.append(t_drv)
-    elements.append(Spacer(1, 15))
+    elements.append(Spacer(1, 4))
 
     elab_nombre = elaborado_info.get("nombre", "LOGÍSTICA TUVACOL S.A.")
     sig_data = [
@@ -1003,9 +1020,10 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     t_sig.setStyle(TableStyle([
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
+        ('TOPPADDING', (0,0), (-1,-1), 2), ('BOTTOMPADDING', (0,0), (-1,-1), 2),
     ]))
     elements.append(t_sig)
-    elements.append(Spacer(1, 8))
+    elements.append(Spacer(1, 2))
 
     disc_style = ParagraphStyle('Disc', parent=normal_style, fontSize=6, leading=7, fontName='Helvetica-Oblique')
     elements.append(Paragraph("* El remitente declara que se envía exactamente la mercancía relacionada en este documento.", disc_style))
@@ -1670,7 +1688,7 @@ with tab_consulta:
                     st.success(f"✅ Se encontraron {len(registros)} despacho(s) asociado(s) a '{termino}'.")
                     for registro in registros:
                         consecutivo = registro.get("consecutivo", registro.get("id", "N/A"))
-                        fecha = registro.get("fecha") or registro.get("created_at") or "N/A"
+                        fecha = formatear_fecha_colombia(registro.get("fecha") or registro.get("created_at"))
                         st.markdown(
                             f"""
                             <div class="product-card">
