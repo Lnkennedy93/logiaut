@@ -1504,7 +1504,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
 
                 saved = st.session_state[f"saved_data_{tab_key}"]
                 st.markdown("---")
-                st.markdown("### 📥 Exportar y Previsualizar Formato Oficial TUVACOL (GID-F-010)")
+                st.markdown("### Generar Relación De Envio De Mercancia")
                 if saved is None or st.session_state.get(f"consecutivo_num_{tab_key}") is None:
                     st.warning("🔒 Complete todos los campos obligatorios y haga clic en **'Guardar Cambios'** para habilitar la previsualización y las descargas.")
                 else:
