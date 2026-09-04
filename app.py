@@ -949,22 +949,23 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         Paragraph(f"<b>{total_kg:,.2f}</b>", bold_style),
         Paragraph(f"<b>{total_ton:,.3f} T</b>", bold_style)
     ])
+    ultima_fila_datos = len(d_table_data) - 1
 
     table_styles = [
         ('GRID', (0,0), (-1,-1), 1, colors.black),
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#D9D9D9')),
-        ('SPAN', (0, -1), (2, -1)),
-        ('BACKGROUND', (3, -1), (3, -1), colors.HexColor('#D9D9D9')),
-        ('BACKGROUND', (5, -1), (5, -1), colors.HexColor('#D9D9D9')),
+        ('SPAN', (0, ultima_fila_datos), (2, ultima_fila_datos)),
+        ('BACKGROUND', (3, ultima_fila_datos), (3, ultima_fila_datos), colors.HexColor('#D9D9D9')),
+        ('BACKGROUND', (5, ultima_fila_datos), (5, ultima_fila_datos), colors.HexColor('#D9D9D9')),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('ALIGN', (0,1), (1,-2), 'CENTER'),
         ('ALIGN', (5,1), (5,-2), 'CENTER'),
     ]
     for row_index in filas_por_destino:
         table_styles.extend([
-            ('SPAN', (0, row_index), (-1, row_index)),
-            ('BACKGROUND', (0, row_index), (-1, row_index), colors.HexColor('#D9D9D9')),
-            ('ALIGN', (0, row_index), (-1, row_index), 'LEFT'),
+            ('SPAN', (0, row_index), (5, row_index)),
+            ('BACKGROUND', (0, row_index), (5, row_index), colors.HexColor('#D9D9D9')),
+            ('ALIGN', (0, row_index), (5, row_index), 'LEFT'),
         ])
     i = 0
     while i < len(filas_por_documento):
@@ -1037,7 +1038,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         t_drv = Table(drv_data, colWidths=[65, 170, 50, 95, 50, 140])
     estilos_conductor = [
         ('GRID', (0,0), (-1,-1), 1, colors.black),
-        ('SPAN', (0,0), (-1,0)),
+        ('SPAN', (0,0), (1,0)),
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#BFBFBF')),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('TOPPADDING', (0,0), (-1,-1), 2), ('BOTTOMPADDING', (0,0), (-1,-1), 2),
