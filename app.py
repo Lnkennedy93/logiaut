@@ -1115,22 +1115,81 @@ def generar_pdf_local_bytes(df_resumen, saved_data, observaciones_texto, consecu
                 "Destino": grupo_tipo["Destino"].iloc[0]
             })
     df_resumen = pd.DataFrame(filas_consolidadas)
-    return generar_pdf_bytes(
-        df_resumen,
-        len(set(df_resumen["Entrega"])),
-        float(df_resumen["Peso Total (KG)"].sum()),
-        float(df_resumen["Peso Total (KG)"].sum()) / 1000,
-        {
-            "nombre": saved_data.get("d_nombre", ""),
-            "cedula": saved_data.get("d_cedula", ""),
-            "placa": saved_data.get("d_placa", "")
-        },
-        {},
-        {"nombre": saved_data.get("elab_nombre", "")},
-        saved_data.get("empaques_info", "Ninguno especificado"),
-        consecutivo_num,
-        es_local=True
-    )
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=15, leftMargin=15, topMargin=15, bottomMargin=15)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle("LocalTitle", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=11, leading=12, alignment=1)
+    cell_style = ParagraphStyle("LocalCell", parent=styles["Normal"], fontName="Helvetica", fontSize=8, leading=9)
+    header_style = ParagraphStyle("LocalHeader", parent=cell_style, fontName="Helvetica-Bold", textColor=colors.white, alignment=1)
+    gray_style = ParagraphStyle("LocalGray", parent=cell_style, fontName="Helvetica-Bold", fontSize=8.5)
+
+    story = []
+    consecutivo = f"No.{str(consecutivo_num).zfill(8)}"
+    encabezado = Table([[
+        Paragraph("<b>TUVACOL S.A.</b><br/>TUBERIAS Y VALVULAS DE COLOMBIA", title_style),
+        Paragraph("<b>RELACION DESPACHOS LOCALES</b>", title_style),
+        Paragraph(f"<b>{consecutivo}</b><br/>Fecha: {datetime.date.today():%d-%m-%Y}", cell_style)
+    ]], colWidths=[150, 260, 172])
+    encabezado.setStyle(TableStyle([("GRID", (0, 0), (2, 0), 1, colors.black), ("VALIGN", (0, 0), (2, 0), "MIDDLE"), ("ALIGN", (0, 0), (2, 0), "CENTER"), ("TOPPADDING", (0, 0), (2, 0), 2), ("BOTTOMPADDING", (0, 0), (2, 0), 2)]))
+    story.extend([encabezado, Spacer(1, 2)])
+
+    filas = [[
+        Paragraph("Unidades enviadas", header_style),
+        Paragraph("Descripción del empaque", header_style),
+        Paragraph("Instrucciones de Entrega", header_style),
+        Paragraph("Peso (Kilos)", header_style),
+        Paragraph("Doc. Ref.", header_style)
+    ]]
+    estilos = [("GRID", (0, 0), (4, -1), 1, colors.black), ("BACKGROUND", (0, 0), (4, 0), colors.HexColor("#1F3864")), ("VALIGN", (0, 0), (4, -1), "MIDDLE"), ("TOPPADDING", (0, 0), (4, -1), 2), ("BOTTOMPADDING", (0, 0), (4, -1), 2)]
+    fila_actual = 1
+
+    for entrega, grupo in df_resumen.groupby("Entrega", sort=False):
+        cliente = grupo["Cliente"].iloc[0] if "Cliente" in grupo.columns else "CLIENTE GENERAL"
+        peso_documento = float(grupo["Peso Total (KG)"].sum())
+        filas.append([Paragraph(f"<b>DOCUMENTO: {escape(str(entrega))} | CLIENTE: {escape(str(cliente))} | PESO TOTAL DOC: {peso_documento:,.2f} KG</b>", gray_style), "", "", "", ""])
+        estilos.extend([("SPAN", (0, fila_actual), (4, fila_actual)), ("BACKGROUND", (0, fila_actual), (4, fila_actual), colors.HexColor("#D9D9D9"))])
+        fila_actual += 1
+
+        es_mts = grupo["Descripción"].astype(str).str.upper().str.contains("MTS|TUBERIA", na=False)
+        for tipo, grupo_tipo in (("MTS", grupo[es_mts]), ("UND", grupo[~es_mts])):
+            if grupo_tipo.empty:
+                continue
+            cantidad = float(grupo_tipo["Cantidad"].sum())
+            peso = float(grupo_tipo["Peso Total (KG)"].sum())
+            filas.append([
+                Paragraph(f"{cantidad:,.0f} {tipo}", cell_style),
+                Paragraph("TUBERIA" if tipo == "MTS" else "ACCESORIOS", cell_style),
+                Paragraph("TUBERIA CONSOLIDADA" if tipo == "MTS" else "ACCESORIOS / VARIOS CONSOLIDADOS", cell_style),
+                Paragraph(f"{peso:,.2f}", cell_style),
+                Paragraph(str(entrega), cell_style)
+            ])
+            fila_actual += 1
+
+    tabla = Table(filas, colWidths=[65, 75, 287, 55, 100])
+    tabla.setStyle(TableStyle(estilos))
+    story.extend([tabla, Spacer(1, 2)])
+
+    peso_total = float(df_resumen["Peso Total (KG)"].sum())
+    resumen = Table([[
+        Paragraph(f"<b>Observaciones:</b> {escape(observaciones_texto)}", cell_style),
+        Paragraph(f"<b>Peso Total:</b><br/>{peso_total:,.2f} KG", cell_style),
+        Paragraph(f"<b>{peso_total / 1000:,.3f} T</b>", cell_style)
+    ]], colWidths=[392, 90, 100])
+    resumen.setStyle(TableStyle([("GRID", (0, 0), (2, 0), 1, colors.black), ("VALIGN", (0, 0), (2, 0), "MIDDLE"), ("TOPPADDING", (0, 0), (2, 0), 2), ("BOTTOMPADDING", (0, 0), (2, 0), 2)]))
+    story.extend([resumen, Spacer(1, 2)])
+
+    conductor = Table([[
+        Paragraph("<b>Datos del Conductor y Vehículo</b>", cell_style), "", ""],
+        [Paragraph(f"<b>Conductor:</b> {escape(str(saved_data.get('d_nombre', '')))}", cell_style), Paragraph(f"<b>Cédula:</b> {escape(str(saved_data.get('d_cedula', '')))}", cell_style), Paragraph(f"<b>Placa:</b> {escape(str(saved_data.get('d_placa', '')))}", cell_style)]
+    ], colWidths=[194, 194, 194])
+    conductor.setStyle(TableStyle([("GRID", (0, 0), (2, 1), 1, colors.black), ("SPAN", (0, 0), (2, 0)), ("BACKGROUND", (0, 0), (2, 0), colors.HexColor("#EAEAEA")), ("TOPPADDING", (0, 0), (2, 1), 2), ("BOTTOMPADDING", (0, 0), (2, 1), 2)]))
+    story.extend([conductor, Spacer(1, 4)])
+    firmas = Table([[Paragraph(f"<b>Elaborado por:</b><br/>{escape(str(saved_data.get('elab_nombre', '')))}", cell_style), Paragraph("<b>Firma y Cédula del Conductor:</b><br/><br/>___________________________", cell_style), Paragraph("<b>Recibe y Acepta:</b><br/><br/>___________________________", cell_style)]], colWidths=[194, 194, 194])
+    firmas.setStyle(TableStyle([("VALIGN", (0, 0), (2, 0), "TOP"), ("TOPPADDING", (0, 0), (2, 0), 2), ("BOTTOMPADDING", (0, 0), (2, 0), 2)]))
+    story.append(firmas)
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
 
 # ---------------------------------------------------------
 # Identificación de documentos y extracción de materiales
