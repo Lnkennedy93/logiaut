@@ -828,7 +828,10 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     h_data = [
         [
             sgi_cell,
-            Paragraph("<b>RELACION DE ENVIO DE MERCANCIAS</b>", brand_title_style),
+            Paragraph(
+                "<b>RELACION DESPACHOS LOCALES</b>" if es_local else "<b>RELACION DE ENVIO DE MERCANCIAS</b>",
+                brand_title_style
+            ),
             Paragraph("Versión: 05<br/>Vigente desde: 12-02-2021<br/><b>Codigo: GID-F-010</b><br/>Elaborado por: Comité SGI", normal_style)
         ]
     ]
@@ -916,7 +919,16 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     df_edm = df_resumen[entregas.str.upper().str.startswith("EDM", na=False)]
     df_otros = df_resumen[~entregas.str.upper().str.startswith("EDM", na=False)]
 
-    if not df_edm.empty:
+    if es_local:
+        for entrega, group_doc in df_resumen.groupby("Entrega", sort=False):
+            filas_por_destino.append(len(d_table_data))
+            d_table_data.append([
+                Paragraph(f"<b>DOCUMENTO: {escape(str(entrega))}</b>", bold_style),
+                "", "", "", "", ""
+            ])
+            for _, row in group_doc.iterrows():
+                agregar_fila_material(row)
+    elif not df_edm.empty:
         edm_nums = []
         for entrega in df_edm["Entrega"].unique():
             coincidencia = re.search(r"\d+", str(entrega))
@@ -930,14 +942,15 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         for _, row in df_edm.iterrows():
             agregar_fila_material(row)
 
-    for destino, group_dest in df_otros.groupby("Destino"):
-        filas_por_destino.append(len(d_table_data))
-        d_table_data.append([
-            Paragraph(f"<b>DESTINO: {escape(str(destino))}</b>", bold_style),
-            "", "", "", "", ""
-        ])
-        for _, row in group_dest.iterrows():
-            agregar_fila_material(row)
+    if not es_local:
+        for destino, group_dest in df_otros.groupby("Destino"):
+            filas_por_destino.append(len(d_table_data))
+            d_table_data.append([
+                Paragraph(f"<b>DESTINO: {escape(str(destino))}</b>", bold_style),
+                "", "", "", "", ""
+            ])
+            for _, row in group_dest.iterrows():
+                agregar_fila_material(row)
 
     docs_str = ", ".join(docs_unicos)
     obs_texto = f"Observaciones: TOTAL: {tot_und:,.0f} UND, {tot_mts:,.0f} MTS | DOCS: {docs_str} | Empaques: {empaques_info}"
