@@ -1420,6 +1420,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
             if mostrar_exportacion:
                 st.markdown("---")
                 revision_formulario = st.session_state.get(f"limpieza_{tab_key}", 0)
+                is_local = tab_key == "tab_local"
                 
                 if f"saved_data_{tab_key}" not in st.session_state or not isinstance(st.session_state[f"saved_data_{tab_key}"], dict):
                     st.session_state[f"saved_data_{tab_key}"] = {
@@ -1436,25 +1437,40 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     }
 
                 with st.form(key=f"form_despacho_{tab_key}"):
-                    st.markdown("### 📄 Datos del Destinatario")
-                    col_dst1, col_dst2 = st.columns(2)
-                    with col_dst1:
-                        dest_name_input = st.text_input("Nombre del Destinatario:", value=st.session_state[f"saved_data_{tab_key}"]["dest_name"])
-                    with col_dst2:
-                        dest_address_input = st.text_input("Dirección / Teléfono del Destinatario:", value=st.session_state[f"saved_data_{tab_key}"]["dest_address"])
+                    if not is_local:
+                        st.markdown("### 📄 Datos del Destinatario")
+                        col_dst1, col_dst2 = st.columns(2)
+                        with col_dst1:
+                            dest_name_input = st.text_input("Nombre del Destinatario:", value=st.session_state[f"saved_data_{tab_key}"]["dest_name"])
+                        with col_dst2:
+                            dest_address_input = st.text_input("Dirección / Teléfono del Destinatario:", value=st.session_state[f"saved_data_{tab_key}"]["dest_address"])
+                    else:
+                        dest_name_input = "LOCAL"
+                        dest_address_input = "LOCAL"
 
                     st.markdown("---")
                     st.markdown("### 🚛 Datos del Conductor y Vehiculo")
-                    col_drv1, col_drv2, col_drv3 = st.columns(3)
-                    with col_drv1:
-                        d_nombre_input = st.text_input("Nombre Completo Conductor:", value=st.session_state[f"saved_data_{tab_key}"]["d_nombre"])
-                        d_placa_input = st.text_input("Placa Vehículo:", value=st.session_state[f"saved_data_{tab_key}"]["d_placa"])
-                    with col_drv2:
-                        d_cedula_input = st.text_input("Cédula No.:", value=st.session_state[f"saved_data_{tab_key}"]["d_cedula"])
-                        d_marca_input = st.text_input("Marca / Modelo / Color:", value=st.session_state[f"saved_data_{tab_key}"]["d_marca"])
-                    with col_drv3:
-                        d_celular_input = st.text_input("Celular / Teléfono:", value=st.session_state[f"saved_data_{tab_key}"]["d_celular"])
-                        d_transp_input = st.text_input("Empresa Transportadora:", value=st.session_state[f"saved_data_{tab_key}"]["d_transp"])
+                    if not is_local:
+                        col_drv1, col_drv2, col_drv3 = st.columns(3)
+                        with col_drv1:
+                            d_nombre_input = st.text_input("Nombre Completo Conductor:", value=st.session_state[f"saved_data_{tab_key}"]["d_nombre"])
+                            d_placa_input = st.text_input("Placa Vehículo:", value=st.session_state[f"saved_data_{tab_key}"]["d_placa"])
+                        with col_drv2:
+                            d_cedula_input = st.text_input("Cédula No.:", value=st.session_state[f"saved_data_{tab_key}"]["d_cedula"])
+                            d_marca_input = st.text_input("Marca / Modelo / Color:", value=st.session_state[f"saved_data_{tab_key}"]["d_marca"])
+                        with col_drv3:
+                            d_celular_input = st.text_input("Celular / Teléfono:", value=st.session_state[f"saved_data_{tab_key}"]["d_celular"])
+                            d_transp_input = st.text_input("Empresa Transportadora:", value=st.session_state[f"saved_data_{tab_key}"]["d_transp"])
+                    else:
+                        col_drv1, col_drv2 = st.columns(2)
+                        with col_drv1:
+                            d_nombre_input = st.text_input("Nombre Completo Conductor:", value=st.session_state[f"saved_data_{tab_key}"]["d_nombre"])
+                            d_cedula_input = st.text_input("Cédula No.:", value=st.session_state[f"saved_data_{tab_key}"]["d_cedula"])
+                        with col_drv2:
+                            d_placa_input = st.text_input("Placa Vehículo:", value=st.session_state[f"saved_data_{tab_key}"]["d_placa"])
+                        d_marca_input = ""
+                        d_celular_input = ""
+                        d_transp_input = ""
 
                     st.markdown("---")
                     st.markdown("### 📦 Cantidad de Empaques por Tipo")
@@ -1491,11 +1507,12 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     submitted = st.form_submit_button(label="💾 Guardar Cambios")
 
                     if submitted:
-                        campos_obligatorios = [
-                            dest_name_input, dest_address_input, d_nombre_input,
-                            d_placa_input, d_cedula_input, d_marca_input,
-                            d_celular_input, d_transp_input, elab_nombre_input
-                        ]
+                        campos_obligatorios = [d_nombre_input, d_cedula_input, d_placa_input, elab_nombre_input]
+                        if not is_local:
+                            campos_obligatorios.extend([
+                                dest_name_input, dest_address_input, d_marca_input,
+                                d_celular_input, d_transp_input
+                            ])
                         if not all(campo.strip() for campo in campos_obligatorios):
                             st.session_state[f"saved_data_{tab_key}"] = None
                             st.session_state.pop(f"consecutivo_num_{tab_key}", None)
