@@ -924,9 +924,14 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
 
     if es_local:
         for entrega, group_doc in df_resumen.groupby("Entrega", sort=False):
+            cliente_val = group_doc["Cliente"].iloc[0] if "Cliente" in group_doc.columns else "CLIENTE GENERAL"
+            peso_doc_total = float(group_doc["Peso Total (KG)"].sum())
             filas_por_destino.append(len(d_table_data))
             d_table_data.append([
-                Paragraph(f"<b>DOCUMENTO: {escape(str(entrega))}</b>", bold_style),
+                Paragraph(
+                    f"<b>DOCUMENTO: {escape(str(entrega))} | CLIENTE: {escape(str(cliente_val))} | PESO TOTAL DOC: {peso_doc_total:,.2f} KG</b>",
+                    bold_style
+                ),
                 "", "", "", "", ""
             ])
             for _, row in group_doc.iterrows():
@@ -1122,7 +1127,7 @@ def analizar_metadatos_documento(pdf_source):
                 texto_pagina1 = pdf.pages[0].extract_text() or ""
     except Exception as error:
         registrar_log(f"No se pudo identificar los metadatos del documento: {error}", "WARNING")
-        return "DOCUMENTO No. S/N", "DESTINO GENERAL"
+        return "DOCUMENTO No. S/N", "DESTINO GENERAL", "CLIENTE GENERAL"
 
     tipos_documento = [
         ("TRANSFERENCIA DE STOCK", "TS"),
@@ -1185,7 +1190,13 @@ def analizar_metadatos_documento(pdf_source):
                 sucursal_destino = linea
                 break
 
-    return doc_clean, sucursal_destino
+    cliente_nombre = "CLIENTE GENERAL"
+    for indice, linea in enumerate(lineas):
+        if linea == "CLIENTE" and indice + 1 < len(lineas):
+            cliente_nombre = lineas[indice + 1]
+            break
+
+    return doc_clean, sucursal_destino, cliente_nombre
 
 # ---------------------------------------------------------
 # Extractor Inteligente de Materiales
@@ -1402,18 +1413,19 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
 
     fuentes_unicas = []
     tags_vistos = set()
-    for fuente, doc_clean, destino in lista_fuentes:
-        clave = (doc_clean, destino)
+    for fuente, doc_clean, destino, cliente in lista_fuentes:
+        clave = (doc_clean, destino, cliente)
         if clave not in tags_vistos:
             tags_vistos.add(clave)
-            fuentes_unicas.append((fuente, doc_clean, destino))
+            fuentes_unicas.append((fuente, doc_clean, destino, cliente))
 
     todos_los_items = []
-    for pdf_source, doc_clean, destino in fuentes_unicas:
+    for pdf_source, doc_clean, destino, cliente in fuentes_unicas:
         try:
             items_doc = extraer_tabla_materiales(pdf_source, nombre_doc=doc_clean)
             for item in items_doc:
                 item["Destino"] = destino
+                item["Cliente"] = cliente
             todos_los_items.extend(items_doc)
         except Exception as e:
             st.error(f"Error procesando el documento `{doc_clean}`: {e}")
@@ -1741,8 +1753,8 @@ if tab2 is not None:
         lista_fuentes_tab2 = []
         if uploaded_files_tab2:
             for file in uploaded_files_tab2:
-                doc_clean, destino = analizar_metadatos_documento(file)
-                lista_fuentes_tab2.append((file, doc_clean, destino))
+                doc_clean, destino, cliente = analizar_metadatos_documento(file)
+                lista_fuentes_tab2.append((file, doc_clean, destino, cliente))
         render_procesamiento_despacho(lista_fuentes_tab2, "tab2", mostrar_exportacion=False)
 
 if tab3 is not None:
@@ -1767,8 +1779,8 @@ if tab3 is not None:
         lista_fuentes = []
         if uploaded_files:
             for file in uploaded_files:
-                doc_clean, destino = analizar_metadatos_documento(file)
-                lista_fuentes.append((file, doc_clean, destino))
+                doc_clean, destino, cliente = analizar_metadatos_documento(file)
+                lista_fuentes.append((file, doc_clean, destino, cliente))
         df_resultado_t3 = render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
 
 if tab_local is not None:
@@ -1786,8 +1798,8 @@ if tab_local is not None:
         lista_fuentes_local = []
         if uploaded_files_local:
             for file in uploaded_files_local:
-                doc_clean, destino = analizar_metadatos_documento(file)
-                lista_fuentes_local.append((file, doc_clean, destino))
+                doc_clean, destino, cliente = analizar_metadatos_documento(file)
+                lista_fuentes_local.append((file, doc_clean, destino, cliente))
         render_procesamiento_despacho(
             lista_fuentes_local,
             "tab_local",
