@@ -1680,9 +1680,8 @@ st.title("🔄 FlowShift")
 st.markdown("<p style='color: #666; font-size: 16px; margin-top: -15px;'><i>La evolución inteligente de tu gestión administrativa.</i></p>", unsafe_allow_html=True)
 
 if es_dev_autenticado:
-    tab1, tab2, tab3, tab_local, tab_consulta, tab_rutas, tab_extractor, tab_maestro, tab4 = st.tabs([
-        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío", "📤 Relación de Envío Local", "🔎 Consultar Documento",
-        "Gestión de Rutas", "Clasificador de Rutas", "🗂️ Registro Maestro", "📜 Logs"
+    tab1, tab2, tab3, tab_local, tab_consulta, tab4 = st.tabs([
+        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío", "📤 Relación de Envío Local", "🔎 Consultar Documento", "📜 Logs"
     ])
 else:
     tab1, tab2, tab3, tab_local, tab_consulta = st.tabs([
@@ -1877,17 +1876,6 @@ with tab_consulta:
                 st.error(f"❌ Error al consultar la base de datos: {e}")
 
 if es_dev_autenticado:
-    with tab_rutas:
-        st.subheader("Clasificador de Rutas")
-        drive_busqueda = st.text_input("🔍 Buscar por No. Entrega en Google Drive:", placeholder="Ej: 20006895")
-        pdf_fuente = descargar_pdf_desde_drive(DRIVE_FOLDER_ID, drive_busqueda.strip()) if drive_busqueda.strip() else None
-        if pdf_fuente:
-            raw_obs = extract_observation_text(pdf_fuente)
-            if raw_obs:
-                structured = parse_observation_data(raw_obs)
-                muni, reg = procesar_ubicacion(structured["Dirección"])
-                st.info(f"Dirección: {structured['Dirección']} | Región: {reg}")
-
     with tab4:
         st.subheader("📜 Log Auditoría de Ejecución")
         if os.path.exists(LOG_FILENAME):
