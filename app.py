@@ -290,7 +290,7 @@ def pantalla_login():
             correo = st.text_input("Correo electrónico")
             password = st.text_input("Contraseña", type="password")
             boton_login = st.form_submit_button("Iniciar Sesión", use_container_width=True)
-            
+
             if boton_login:
                 user_data = validar_en_supabase(correo, password)
                 if user_data:
@@ -1075,6 +1075,24 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     buffer.seek(0)
     return buffer.getvalue()
 
+def generar_pdf_local_bytes(df_resumen, saved_data, observaciones_texto, consecutivo_num):
+    return generar_pdf_bytes(
+        df_resumen,
+        len(set(df_resumen["Entrega"])),
+        float(df_resumen["Peso Total (KG)"].sum()),
+        float(df_resumen["Peso Total (KG)"].sum()) / 1000,
+        {
+            "nombre": saved_data.get("d_nombre", ""),
+            "cedula": saved_data.get("d_cedula", ""),
+            "placa": saved_data.get("d_placa", "")
+        },
+        {},
+        {"nombre": saved_data.get("elab_nombre", "")},
+        saved_data.get("empaques_info", "Ninguno especificado"),
+        consecutivo_num,
+        es_local=True
+    )
+
 # ---------------------------------------------------------
 # Identificación de documentos y extracción de materiales
 # ---------------------------------------------------------
@@ -1578,7 +1596,11 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
 
                     consecutivo_num = st.session_state.get(f"consecutivo_num_{tab_key}")
                     excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info, consecutivo_num)
-                    pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info, consecutivo_num, es_local=is_local)
+                    observaciones_pdf = f"Empaques: {empaques_info}"
+                    if is_local:
+                        pdf_bytes = generar_pdf_local_bytes(df_resumen, saved, observaciones_pdf, consecutivo_num)
+                    else:
+                        pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info, consecutivo_num)
 
                     with st.expander("👁️ Previsualizar Documento Generado (PDF)", expanded=False):
                         base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
