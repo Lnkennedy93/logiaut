@@ -29,11 +29,11 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from supabase import create_client, Client
 
 # ---------------------------------------------------------
-# Configuración inicial de Streamlit
+# ConfiguraciÃ³n inicial de Streamlit
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="FlowShift",
-    page_icon="🔄",
+    page_icon="ðŸ”„",
     layout="wide"
 )
 
@@ -83,7 +83,7 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# Parámetros y Constantes
+# ParÃ¡metros y Constantes
 # ---------------------------------------------------------
 GOOGLE_SHEET_XLSX_URL = "https://docs.google.com/spreadsheets/d/1aTlmA6JBldTX3zN-djDjWA5HEAExTPcdNhJsPJL9Kgo/export?format=xlsx"
 DRIVE_FOLDER_ID = "1Amwy8_uQgo6X0VS2DXH028Ep80BMi4rP"
@@ -111,10 +111,10 @@ def registrar_log(mensaje, tipo="INFO"):
     elif tipo == "ERROR":
         logging.error(mensaje)
 
-registrar_log("--- Sesión iniciada ---")
+registrar_log("--- SesiÃ³n iniciada ---")
 
 # ---------------------------------------------------------
-# Conexión Inteligente Google Drive (Híbrida: Local/Nube)
+# ConexiÃ³n Inteligente Google Drive (HÃ­brida: Local/Nube)
 # ---------------------------------------------------------
 def get_google_creds():
     scope = ["https://www.googleapis.com/auth/drive"]
@@ -147,7 +147,7 @@ def descargar_pdf_desde_drive(folder_id, numero_entrega):
         ).execute()
         files = results.get('files', [])
 
-        # Filtramos para asegurar que coincida con el número de entrega exacto
+        # Filtramos para asegurar que coincida con el nÃºmero de entrega exacto
         matched_file = None
         for f in files:
             if str(numero_entrega) in f['name']:
@@ -158,7 +158,7 @@ def descargar_pdf_desde_drive(folder_id, numero_entrega):
             matched_file = files[0] # Tomamos el primero como respaldo si contiene coincidencia parcial
 
         if not matched_file:
-            registrar_log(f"No se encontró PDF en Drive para la entrega: {numero_entrega}", "WARNING")
+            registrar_log(f"No se encontrÃ³ PDF en Drive para la entrega: {numero_entrega}", "WARNING")
             return None
 
         file_id = matched_file['id']
@@ -180,7 +180,7 @@ def descargar_pdf_desde_drive(folder_id, numero_entrega):
         return None
 
 # ---------------------------------------------------------
-# Conexión a Supabase (Autenticación y Licencias)
+# ConexiÃ³n a Supabase (AutenticaciÃ³n y Licencias)
 # ---------------------------------------------------------
 @st.cache_resource
 def init_supabase():
@@ -196,6 +196,8 @@ if "usuario_actual" not in st.session_state:
     st.session_state.usuario_actual = None
 if "empresa_actual" not in st.session_state:
     st.session_state.empresa_actual = None
+if "rol_actual" not in st.session_state:
+    st.session_state.rol_actual = "LOGISTICA"
 
 def validar_en_supabase(correo, password):
     try:
@@ -212,7 +214,7 @@ def validar_en_supabase(correo, password):
                 return usuario
         return None
     except Exception as e:
-        st.error(f"Error de conexión con la base de datos: {e}")
+        st.error(f"Error de conexiÃ³n con la base de datos: {e}")
         return None
 
 def registrar_envio_en_supabase(saved_data, df_resumen, observaciones_texto):
@@ -240,7 +242,7 @@ def registrar_envio_en_supabase(saved_data, df_resumen, observaciones_texto):
             return registro.get("consecutivo", registro.get("id"))
         return None
     except Exception as e:
-        registrar_log(f"Error registrando envío en Supabase: {e}", "ERROR")
+        registrar_log(f"Error registrando envÃ­o en Supabase: {e}", "ERROR")
         return None
 
 def registrar_envio_local_en_supabase(saved_data, df_resumen, observaciones_texto):
@@ -264,7 +266,7 @@ def registrar_envio_local_en_supabase(saved_data, df_resumen, observaciones_text
             return registro.get("consecutivo", registro.get("id"))
         return None
     except Exception as e:
-        registrar_log(f"Error registrando envío local en Supabase: {e}", "ERROR")
+        registrar_log(f"Error registrando envÃ­o local en Supabase: {e}", "ERROR")
         return None
 
 def formatear_fecha_colombia(fecha_raw):
@@ -284,12 +286,12 @@ def pantalla_login():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        st.subheader("🔄 FlowShift")
-        st.caption("La evolución inteligente de tu gestión administrativa.")
+        st.subheader("ðŸ”„ FlowShift")
+        st.caption("La evoluciÃ³n inteligente de tu gestiÃ³n administrativa.")
         with st.form("form_login"):
-            correo = st.text_input("Correo electrónico")
-            password = st.text_input("Contraseña", type="password")
-            boton_login = st.form_submit_button("Iniciar Sesión", use_container_width=True)
+            correo = st.text_input("Correo electrÃ³nico")
+            password = st.text_input("ContraseÃ±a", type="password")
+            boton_login = st.form_submit_button("Iniciar SesiÃ³n", use_container_width=True)
             
             if boton_login:
                 user_data = validar_en_supabase(correo, password)
@@ -297,10 +299,11 @@ def pantalla_login():
                     st.session_state.autenticado = True
                     st.session_state.usuario_actual = user_data["correo"]
                     st.session_state.empresa_actual = user_data["empresa"]
-                    st.success("¡Licencia verificada con éxito!")
+                    st.session_state.rol_actual = str(user_data.get("rol", user_data.get("role", "LOGISTICA"))).strip().upper()
+                    st.success("Â¡Licencia verificada con Ã©xito!")
                     st.rerun()
                 else:
-                    st.error("❌ Credenciales incorrectas o licencia suspendida/inactiva.")
+                    st.error("âŒ Credenciales incorrectas o licencia suspendida/inactiva.")
         
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.markdown(
@@ -318,7 +321,7 @@ if not st.session_state.autenticado:
     st.stop()
 
 # ---------------------------------------------------------
-# Capa de Datos Inteligente (Patrón Clean Core - SAP BTP / Google)
+# Capa de Datos Inteligente (PatrÃ³n Clean Core - SAP BTP / Google)
 # ---------------------------------------------------------
 def get_product_data_from_source(codigo_input, df_bd):
     env_mode = st.session_state.get("env_mode", "DEV (Google)")
@@ -358,7 +361,7 @@ def fetch_google_sheet_database(custom_url=None):
     if 'format=csv' in target_url:
         target_url = target_url.replace('format=csv', 'format=xlsx')
 
-    registrar_log(f"Iniciando sincronización completa desde Google Sheets: {target_url}")
+    registrar_log(f"Iniciando sincronizaciÃ³n completa desde Google Sheets: {target_url}")
 
     try:
         req = urllib.request.Request(
@@ -381,7 +384,7 @@ def fetch_google_sheet_database(custom_url=None):
             idx_header = 0
             for idx, row in df_h.iterrows():
                 row_str = " ".join([str(val).lower() for val in row.values if pd.notna(val)])
-                if any(k in row_str for k in ['código', 'codigo', 'artículo', 'articulo', 'material']) and any(k in row_str for k in ['peso', 'kg']):
+                if any(k in row_str for k in ['cÃ³digo', 'codigo', 'artÃ­culo', 'articulo', 'material']) and any(k in row_str for k in ['peso', 'kg']):
                     idx_header = idx
                     break
 
@@ -393,7 +396,7 @@ def fetch_google_sheet_database(custom_url=None):
             renames = {}
             for col in df_h.columns:
                 c_low = col.lower()
-                if any(k in c_low for k in ['código', 'codigo', 'artículo', 'articulo', 'número', 'numero', 'material']) and 'Codigo' not in renames.values():
+                if any(k in c_low for k in ['cÃ³digo', 'codigo', 'artÃ­culo', 'articulo', 'nÃºmero', 'numero', 'material']) and 'Codigo' not in renames.values():
                     renames[col] = 'Codigo'
                 elif 'desc' in c_low and 'Descripcion' not in renames.values():
                     renames[col] = 'Descripcion'
@@ -405,7 +408,7 @@ def fetch_google_sheet_database(custom_url=None):
             
             if 'Codigo' in cols_deseadas and 'Peso_KG' in cols_deseadas:
                 df_h = df_h[cols_deseadas].dropna(subset=['Codigo'])
-                df_h['PESTAÑA_BD'] = nombre_hoja
+                df_h['PESTAÃ‘A_BD'] = nombre_hoja
                 list_dfs.append(df_h)
 
         if list_dfs:
@@ -417,7 +420,7 @@ def fetch_google_sheet_database(custom_url=None):
                 .str.replace(r'\.0$', '', regex=True)
                 .str.lstrip('0')
             )
-            registrar_log(f"Sincronización exitosa. Total: {len(df_final)} productos en {len(list_dfs)} pestañas.")
+            registrar_log(f"SincronizaciÃ³n exitosa. Total: {len(df_final)} productos en {len(list_dfs)} pestaÃ±as.")
             return df_final
         else:
             return None
@@ -442,7 +445,7 @@ def cargar_bd_local(ruta_archivo):
                 renames = {}
                 for col in df_h.columns:
                     c_low = col.lower()
-                    if any(k in c_low for k in ['código', 'codigo', 'artículo', 'articulo', 'número', 'numero', 'material']) and 'Codigo' not in renames.values():
+                    if any(k in c_low for k in ['cÃ³digo', 'codigo', 'artÃ­culo', 'articulo', 'nÃºmero', 'numero', 'material']) and 'Codigo' not in renames.values():
                         renames[col] = 'Codigo'
                     elif 'desc' in c_low and 'Descripcion' not in renames.values():
                         renames[col] = 'Descripcion'
@@ -454,7 +457,7 @@ def cargar_bd_local(ruta_archivo):
                 
                 if 'Codigo' in cols_deseadas and 'Peso_KG' in cols_deseadas:
                     df_h = df_h[cols_deseadas].dropna(subset=['Codigo'])
-                    df_h['PESTAÑA_BD'] = nombre_hoja
+                    df_h['PESTAÃ‘A_BD'] = nombre_hoja
                     list_dfs.append(df_h)
 
         if list_dfs:
@@ -510,7 +513,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
 
     ws.merge_cells("A1:B5")
     cell_a1 = ws["A1"]
-    cell_a1.value = "Sistema de Gestión Integral\nTUVACOL S.A."
+    cell_a1.value = "Sistema de GestiÃ³n Integral\nTUVACOL S.A."
     cell_a1.font = font_brand_bold_10
     cell_a1.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
@@ -530,15 +533,15 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
     cell_c1.alignment = Alignment(horizontal="center", vertical="center")
 
     ws.merge_cells("F1:G1")
-    ws["F1"] = "Versión: 05"
+    ws["F1"] = "VersiÃ³n: 05"
     ws.merge_cells("F2:G2")
     ws["F2"] = "Vigente desde: 12-02-2021"
     ws.merge_cells("F3:G3")
     ws["F3"] = "Codigo: GID-F-010"
     ws.merge_cells("F4:G4")
-    ws["F4"] = "Elaborado por: Comité SGI"
+    ws["F4"] = "Elaborado por: ComitÃ© SGI"
     ws.merge_cells("F5:G5")
-    ws["F5"] = "Revisado y Aprobado por: Comité SGI"
+    ws["F5"] = "Revisado y Aprobado por: ComitÃ© SGI"
 
     for r in range(1, 6):
         for c in range(6, 8):
@@ -553,7 +556,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
     ws["A7"].font = font_arial_bold_10
 
     ws.merge_cells("C7:D7")
-    ws["C7"] = "LOGÍSTICA SEDE FUNZA."
+    ws["C7"] = "LOGÃSTICA SEDE FUNZA."
     ws["C7"].font = font_arial_bold_10
     ws["C7"].alignment = Alignment(horizontal="center")
 
@@ -573,10 +576,10 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
 
     headers = [
         "Unidades enviadas",
-        "Descripción del empaque",
-        "Descripción de la mercancía",
+        "DescripciÃ³n del empaque",
+        "DescripciÃ³n de la mercancÃ­a",
         "",
-        "Código de la mercancía",
+        "CÃ³digo de la mercancÃ­a",
         "Peso (Kilos)",
         "Documentos de referencia"
     ]
@@ -603,7 +606,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
 
     for idx, row in df_resumen.iterrows():
         cant_val = float(row["Cantidad"])
-        desc_str = str(row["Descripción"])
+        desc_str = str(row["DescripciÃ³n"])
         doc_num = str(row["Entrega"])
         destino = str(row.get("Destino", "DESTINO GENERAL")).strip() or "DESTINO GENERAL"
 
@@ -648,7 +651,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
         ws.cell(current_row, 2, empaque_tag).alignment = Alignment(horizontal="center")
         ws.merge_cells(start_row=current_row, start_column=3, end_row=current_row, end_column=4)
         ws.cell(current_row, 3, desc_str).alignment = Alignment(horizontal="left")
-        ws.cell(current_row, 5, str(row["Código"])).alignment = Alignment(horizontal="center")
+        ws.cell(current_row, 5, str(row["CÃ³digo"])).alignment = Alignment(horizontal="center")
 
         p_tot = float(row.get("Peso Total (KG)", 0.0))
         filas_por_documento.append((current_row, doc_num))
@@ -717,19 +720,19 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
 
     ws.cell(current_row, 4, "Nombre:").font = font_arial_9
     ws.merge_cells(start_row=current_row, start_column=5, end_row=current_row, end_column=7)
-    ws.cell(current_row, 5, dest_info.get("nombre", "DESPACHOS CLIENTE / REMISIÓN CONSOLIDADA")).font = font_arial_bold_10
+    ws.cell(current_row, 5, dest_info.get("nombre", "DESPACHOS CLIENTE / REMISIÃ“N CONSOLIDADA")).font = font_arial_bold_10
 
     for col in range(1, 8):
         ws.cell(current_row, col).border = thin_border
     current_row += 1
 
-    ws.cell(current_row, 1, "Dirección y Teléfono:").font = font_arial_9
+    ws.cell(current_row, 1, "DirecciÃ³n y TelÃ©fono:").font = font_arial_9
     ws.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=3)
     ws.cell(current_row, 2, "KM 3,5 VIA FUNZA SIBERIA PARQUE INDUSTRIAL SAN JOSE BODEGA 1 MANZANA B // TEL: 823 77 79").font = Font(name="Arial", size=8)
 
-    ws.cell(current_row, 4, "Dirección y Teléfono:").font = font_arial_9
+    ws.cell(current_row, 4, "DirecciÃ³n y TelÃ©fono:").font = font_arial_9
     ws.merge_cells(start_row=current_row, start_column=5, end_row=current_row, end_column=7)
-    ws.cell(current_row, 5, dest_info.get("direccion", "DIRECCIÓN DE DESTINO REGISTRADA EN REMISIONES")).font = Font(name="Arial", size=8)
+    ws.cell(current_row, 5, dest_info.get("direccion", "DIRECCIÃ“N DE DESTINO REGISTRADA EN REMISIONES")).font = Font(name="Arial", size=8)
 
     for col in range(1, 8):
         ws.cell(current_row, col).border = thin_border
@@ -771,16 +774,16 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
         ws.cell(current_row, col).border = thin_border
     current_row += 2
 
-    elaborado_nombre = elaborado_info.get("nombre", "LOGÍSTICA TUVACOL S.A.")
+    elaborado_nombre = elaborado_info.get("nombre", "LOGÃSTICA TUVACOL S.A.")
     ws.cell(current_row, 1, f"Elaborado por:\n{elaborado_nombre}").font = font_arial_9
-    ws.cell(current_row, 4, "Firma y cédula del Conductor:").font = font_arial_9
+    ws.cell(current_row, 4, "Firma y cÃ©dula del Conductor:").font = font_arial_9
     current_row += 2
     ws.cell(current_row, 1, "Recibe y acepta (Firma y Sello):").font = font_arial_9
     current_row += 2
 
-    ws.cell(current_row, 1, "*El remitente declara que se envía exactamente la mercancía relacionada en este documento.").font = font_calibri_8
+    ws.cell(current_row, 1, "*El remitente declara que se envÃ­a exactamente la mercancÃ­a relacionada en este documento.").font = font_calibri_8
     current_row += 1
-    ws.cell(current_row, 1, "*El conductor declara que ha recibido a satisfacción lo que en este documento se relaciona incluyendo cantidades, peso y empaques.").font = font_calibri_8
+    ws.cell(current_row, 1, "*El conductor declara que ha recibido a satisfacciÃ³n lo que en este documento se relaciona incluyendo cantidades, peso y empaques.").font = font_calibri_8
 
     col_widths = {'A': 20, 'B': 16, 'C': 30, 'D': 35, 'E': 18, 'F': 14, 'G': 22}
     for col_letter, w in col_widths.items():
@@ -821,9 +824,9 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
             img_element = ReportLabImage(LOGO_PATH, width=110, height=45)
             sgi_cell = img_element
         except Exception:
-            sgi_cell = Paragraph("<b>Sistema de Gestión Integral</b><br/><font size=9><b>TUVACOL S.A.</b></font>", brand_title_style)
+            sgi_cell = Paragraph("<b>Sistema de GestiÃ³n Integral</b><br/><font size=9><b>TUVACOL S.A.</b></font>", brand_title_style)
     else:
-        sgi_cell = Paragraph("<b>Sistema de Gestión Integral</b><br/><font size=9><b>TUVACOL S.A.</b></font>", brand_title_style)
+        sgi_cell = Paragraph("<b>Sistema de GestiÃ³n Integral</b><br/><font size=9><b>TUVACOL S.A.</b></font>", brand_title_style)
 
     h_data = [
         [
@@ -832,7 +835,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
                 "<b>RELACION DESPACHOS LOCALES</b>" if es_local else "<b>RELACION DE ENVIO DE MERCANCIAS</b>",
                 brand_title_style
             ),
-            Paragraph("Versión: 05<br/>Vigente desde: 12-02-2021<br/><b>Codigo: GID-F-010</b><br/>Elaborado por: Comité SGI", normal_style)
+            Paragraph("VersiÃ³n: 05<br/>Vigente desde: 12-02-2021<br/><b>Codigo: GID-F-010</b><br/>Elaborado por: ComitÃ© SGI", normal_style)
         ]
     ]
     t_header = Table(h_data, colWidths=[150, 270, 150])
@@ -850,7 +853,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     m_data = [
         [
             Paragraph("<b>Responsable / Cargo:</b>", normal_style),
-            Paragraph("<b>LOGÍSTICA SEDE FUNZA.</b>", bold_style),
+            Paragraph("<b>LOGÃSTICA SEDE FUNZA.</b>", bold_style),
             Paragraph(f"<b>{num_rel}</b>", brand_title_style),
             Paragraph("<b>Fecha:</b>", normal_style),
             Paragraph(f"<b>{fecha_act}</b>", bold_style)
@@ -870,9 +873,9 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     d_table_data = [
         [
             Paragraph("<b>Unidades enviadas</b>", normal_style),
-            Paragraph("<b>Descripción del empaque</b>", normal_style),
-            Paragraph("<b>Descripción de la mercancía</b>", normal_style),
-            Paragraph("<b>Código de la mercancía</b>", normal_style),
+            Paragraph("<b>DescripciÃ³n del empaque</b>", normal_style),
+            Paragraph("<b>DescripciÃ³n de la mercancÃ­a</b>", normal_style),
+            Paragraph("<b>CÃ³digo de la mercancÃ­a</b>", normal_style),
             Paragraph("<b>Peso (Kilos)</b>", normal_style),
             Paragraph("<b>Doc. Ref.</b>", normal_style)
         ]
@@ -893,7 +896,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
             docs_unicos.append(doc_num)
 
         cant_val = float(row["Cantidad"])
-        desc_str = str(row["Descripción"])
+        desc_str = str(row["DescripciÃ³n"])
         es_promediado = (cant_val % 1 != 0)
 
         if "TUBERIA" in desc_str.upper():
@@ -910,7 +913,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
             Paragraph(f"<b>{unidad_str}</b>", normal_style),
             Paragraph(empaque_tag, normal_style),
             Paragraph(desc_str, normal_style),
-            Paragraph(f"<b>{row['Código']}</b>", normal_style),
+            Paragraph(f"<b>{row['CÃ³digo']}</b>", normal_style),
             Paragraph(f"<b>{p_tot:,.2f}</b>", normal_style),
             Paragraph(f"<b>{doc_num}</b>", normal_style)
         ])
@@ -1002,13 +1005,13 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
             Paragraph("<b>Nombre:</b>", normal_style), 
             Paragraph("TUVACOL SEDE FUNZA", bold_style), 
             Paragraph("<b>Nombre:</b>", normal_style), 
-            Paragraph(f"<b>{dest_info.get('nombre', 'DESPACHOS CLIENTE / REMISIÓN')}</b>", bold_style)
+            Paragraph(f"<b>{dest_info.get('nombre', 'DESPACHOS CLIENTE / REMISIÃ“N')}</b>", bold_style)
         ],
         [
-            Paragraph("<b>Dirección/Tel:</b>", normal_style), 
+            Paragraph("<b>DirecciÃ³n/Tel:</b>", normal_style), 
             Paragraph("KM 3,5 VIA FUNZA SIBERIA BODEGA 1", normal_style), 
-            Paragraph("<b>Dirección/Tel:</b>", normal_style), 
-            Paragraph(dest_info.get("direccion", "DIRECCIÓN DE DESTINO REGISTRADA EN REMISIONES"), normal_style)
+            Paragraph("<b>DirecciÃ³n/Tel:</b>", normal_style), 
+            Paragraph(dest_info.get("direccion", "DIRECCIÃ“N DE DESTINO REGISTRADA EN REMISIONES"), normal_style)
         ]
     ]
     t_log = Table(log_data, colWidths=[70, 215, 70, 215])
@@ -1032,7 +1035,7 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
             Paragraph("<b>Modelo/Marca:</b>", normal_style), Paragraph(driver_info.get("marca") or "______", normal_style)
         ],
         [
-            Paragraph("<b>Cédula No.:</b>", normal_style), Paragraph(driver_info.get("cedula") or "_______________________", normal_style), 
+            Paragraph("<b>CÃ©dula No.:</b>", normal_style), Paragraph(driver_info.get("cedula") or "_______________________", normal_style), 
             Paragraph("<b>Empresa:</b>", normal_style), Paragraph(driver_info.get("transportadora") or "__________________", normal_style), "", ""
         ],
         [
@@ -1041,9 +1044,9 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     ]
     if es_local:
         drv_data = [
-            [Paragraph("<b>Datos del Conductor y Vehículo</b>", bold_style), ""],
+            [Paragraph("<b>Datos del Conductor y VehÃ­culo</b>", bold_style), ""],
             [Paragraph("<b>Nombre:</b>", normal_style), Paragraph(driver_info.get("nombre") or "_______________________", normal_style)],
-            [Paragraph("<b>Cédula No.:</b>", normal_style), Paragraph(driver_info.get("cedula") or "_______________________", normal_style)],
+            [Paragraph("<b>CÃ©dula No.:</b>", normal_style), Paragraph(driver_info.get("cedula") or "_______________________", normal_style)],
             [Paragraph("<b>Placa:</b>", normal_style), Paragraph(driver_info.get("placa") or "______", normal_style)]
         ]
         t_drv = Table(drv_data, colWidths=[120, 462])
@@ -1065,11 +1068,11 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     elements.append(t_drv)
     elements.append(Spacer(1, 4))
 
-    elab_nombre = elaborado_info.get("nombre", "LOGÍSTICA TUVACOL S.A.")
+    elab_nombre = elaborado_info.get("nombre", "LOGÃSTICA TUVACOL S.A.")
     sig_data = [
-        [Paragraph(f"<b>Elaborado por:</b><br/>{elab_nombre}", normal_style), Paragraph("<b>Firma y Cédula del Conductor:</b>", normal_style), Paragraph("<b>Recibe y Acepta:</b>", normal_style)],
+        [Paragraph(f"<b>Elaborado por:</b><br/>{elab_nombre}", normal_style), Paragraph("<b>Firma y CÃ©dula del Conductor:</b>", normal_style), Paragraph("<b>Recibe y Acepta:</b>", normal_style)],
         ["", "", ""],
-        [Paragraph("___________________________<br/>LOGÍSTICA TUVACOL S.A.", normal_style), Paragraph("___________________________<br/>C.C.", normal_style), Paragraph("___________________________<br/>CLIENTE / DESTINATARIO", normal_style)]
+        [Paragraph("___________________________<br/>LOGÃSTICA TUVACOL S.A.", normal_style), Paragraph("___________________________<br/>C.C.", normal_style), Paragraph("___________________________<br/>CLIENTE / DESTINATARIO", normal_style)]
     ]
     t_sig = Table(sig_data, colWidths=[190, 190, 190])
     t_sig.setStyle(TableStyle([
@@ -1081,8 +1084,8 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     elements.append(Spacer(1, 2))
 
     disc_style = ParagraphStyle('Disc', parent=normal_style, fontSize=6, leading=7, fontName='Helvetica-Oblique')
-    elements.append(Paragraph("* El remitente declara que se envía exactamente la mercancía relacionada en este documento.", disc_style))
-    elements.append(Paragraph("* El conductor declara que ha recibido a satisfacción lo que en este documento se relaciona incluyendo cantidades, peso y empaques.", disc_style))
+    elements.append(Paragraph("* El remitente declara que se envÃ­a exactamente la mercancÃ­a relacionada en este documento.", disc_style))
+    elements.append(Paragraph("* El conductor declara que ha recibido a satisfacciÃ³n lo que en este documento se relaciona incluyendo cantidades, peso y empaques.", disc_style))
 
     doc.build(elements)
     buffer.seek(0)
@@ -1107,7 +1110,7 @@ def generar_pdf_local_bytes(df_resumen, saved_data, observaciones_texto, consecu
     )
 
 # ---------------------------------------------------------
-# Identificación de documentos y extracción de materiales
+# IdentificaciÃ³n de documentos y extracciÃ³n de materiales
 # ---------------------------------------------------------
 def analizar_metadatos_documento(pdf_source):
     texto_pagina1 = ""
@@ -1123,17 +1126,17 @@ def analizar_metadatos_documento(pdf_source):
 
     tipos_documento = [
         ("TRANSFERENCIA DE STOCK", "TS"),
-        ("ENTREGA DE MERCANCÍA", "EDM"),
+        ("ENTREGA DE MERCANCÃA", "EDM"),
         ("ENTREGA DE MERCANCIA", "EDM"),
-        ("NOTA CRÉDITO", "NC"),
+        ("NOTA CRÃ‰DITO", "NC"),
         ("NOTA CREDITO", "NC"),
-        ("NOTA DÉBITO", "ND"),
+        ("NOTA DÃ‰BITO", "ND"),
         ("NOTA DEBITO", "ND"),
-        ("REMISIÓN", "REM"),
+        ("REMISIÃ“N", "REM"),
         ("REMISION", "REM"),
         ("FACTURA", "FACT"),
     ]
-    patron_numero = r"(?:NO\.?|N[º°]|NUMERO|NÚMERO)\s*[:#]?\s*(\d{4,10})"
+    patron_numero = r"(?:NO\.?|N[ÂºÂ°]|NUMERO|NÃšMERO)\s*[:#]?\s*(\d{4,10})"
     lineas = [re.sub(r"\s+", " ", linea).strip().upper() for linea in texto_pagina1.splitlines() if linea.strip()]
 
     tipo_doc = "DOCUMENTO"
@@ -1144,7 +1147,7 @@ def analizar_metadatos_documento(pdf_source):
                 continue
             tipo_doc = tipo_normalizado
             match_numero = re.search(
-                rf"{re.escape(texto_tipo)}\s*(?:NÚMERO\s*)?{patron_numero}",
+                rf"{re.escape(texto_tipo)}\s*(?:NÃšMERO\s*)?{patron_numero}",
                 linea
             )
             if match_numero:
@@ -1176,7 +1179,7 @@ def analizar_metadatos_documento(pdf_source):
     if match_nit:
         sucursal_destino = match_nit.group(1).strip()
     else:
-        destinos = ["CARTAGENA", "BARRANQUILLA", "MEDELLÍN", "MEDELLIN", "CALI", "TRÁNSITO", "TRANSITO", "BOGOTÁ", "BOGOTA", "FUNZA"]
+        destinos = ["CARTAGENA", "BARRANQUILLA", "MEDELLÃN", "MEDELLIN", "CALI", "TRÃNSITO", "TRANSITO", "BOGOTÃ", "BOGOTA", "FUNZA"]
         for linea in lineas:
             if any(destino in linea for destino in destinos):
                 sucursal_destino = linea
@@ -1199,8 +1202,8 @@ def extraer_tabla_materiales(pdf_source, nombre_doc="Desconocido"):
                 if txt:
                     texto_completo += txt + "\n"
     except Exception as error:
-        registrar_log(f"[{nombre_doc}] Error crítico de lectura de PDF con pdfplumber: {error}", "ERROR")
-        st.warning(f"⚠️ El archivo `{nombre_doc}` está corrupto o incompleto en el origen. Se omitirá del cálculo.")
+        registrar_log(f"[{nombre_doc}] Error crÃ­tico de lectura de PDF con pdfplumber: {error}", "ERROR")
+        st.warning(f"âš ï¸ El archivo `{nombre_doc}` estÃ¡ corrupto o incompleto en el origen. Se omitirÃ¡ del cÃ¡lculo.")
         return []
 
     lineas = [l.strip() for l in texto_completo.split('\n') if l.strip()]
@@ -1208,7 +1211,7 @@ def extraer_tabla_materiales(pdf_source, nombre_doc="Desconocido"):
     excluidos = ['806014553', '806014553-6', '6658461', '8237779', '10109294']
 
     for linea_str in lineas:
-        if any(term in linea_str.upper() for term in ['DECLARAMOS', 'GARANTÍA', 'RESPONSABLE', 'MERCANCÍA ENTREGADA', 'IMPRESO POR', 'REALIZADO POR', 'PÁGINA', 'CONDICIÓN DE PAGO', 'DIRECCIÓN DE ENTREGA', 'NIT / CC', 'TELÉFONOS', 'ÍTEM', 'CÓDIGO', 'CANTIDAD', 'DESCRIPCIÓN', 'UNIDAD', 'ORDEN DE COMPRA', 'VENDEDOR', 'FECHA', 'ACOPI', 'YUMBO', 'CARRERA', 'CALLE', 'AVENIDA', 'CLIENTE', 'SUCURSAL', 'HIDROOBRAS']):
+        if any(term in linea_str.upper() for term in ['DECLARAMOS', 'GARANTÃA', 'RESPONSABLE', 'MERCANCÃA ENTREGADA', 'IMPRESO POR', 'REALIZADO POR', 'PÃGINA', 'CONDICIÃ“N DE PAGO', 'DIRECCIÃ“N DE ENTREGA', 'NIT / CC', 'TELÃ‰FONOS', 'ÃTEM', 'CÃ“DIGO', 'CANTIDAD', 'DESCRIPCIÃ“N', 'UNIDAD', 'ORDEN DE COMPRA', 'VENDEDOR', 'FECHA', 'ACOPI', 'YUMBO', 'CARRERA', 'CALLE', 'AVENIDA', 'CLIENTE', 'SUCURSAL', 'HIDROOBRAS']):
             continue
         
         if linea_str.startswith('#'):
@@ -1237,14 +1240,14 @@ def extraer_tabla_materiales(pdf_source, nombre_doc="Desconocido"):
             if any(term in codigo.upper() for term in ['CLIENTE', 'CARRERA', 'CALLE']) or any(term in desc_bruta.upper() for term in ['SOCIEDAD', 'ANONIMA', 'S.A.', 'LTDA']):
                 continue
 
-            for stop_word in ['DECLARAMOS', 'ÍTEM', 'RESPONSABLE', 'GARANTÍA']:
+            for stop_word in ['DECLARAMOS', 'ÃTEM', 'RESPONSABLE', 'GARANTÃA']:
                 if stop_word in desc_bruta.upper():
                     desc_bruta = desc_bruta.split(stop_word)[0].strip()
 
             desc_bruta = re.sub(r'\s+\d{1,2}$', '', desc_bruta).strip()
 
             desc_limpia = re.sub(r'(?:UND|MTS|MT|UNDS)\s*$', '', desc_bruta, flags=re.IGNORECASE).strip()
-            desc_limpia = re.sub(r'([a-záéíóúÑA-Z])(UND|MTS|MT|UNDS)\b', r'\1', desc_limpia, flags=re.IGNORECASE).strip()
+            desc_limpia = re.sub(r'([a-zÃ¡Ã©Ã­Ã³ÃºÃ‘A-Z])(UND|MTS|MT|UNDS)\b', r'\1', desc_limpia, flags=re.IGNORECASE).strip()
             desc_limpia = re.sub(
                 r'^[\s.:,\-]*\d+(?:[.,]\d+)?\s*(?:UND|MTS|MT|UNDS|UNIDAD)\b[\s.:,\-]*',
                 '',
@@ -1253,19 +1256,19 @@ def extraer_tabla_materiales(pdf_source, nombre_doc="Desconocido"):
             ).strip()
             desc_limpia = re.sub(r'\s+', ' ', desc_limpia).strip()
 
-            if not any(item['Código'] == codigo for item in items):
+            if not any(item['CÃ³digo'] == codigo for item in items):
                 items.append({
                     "Entrega": nombre_doc,
-                    "Código": codigo,
-                    "Descripción": desc_limpia,
+                    "CÃ³digo": codigo,
+                    "DescripciÃ³n": desc_limpia,
                     "Cantidad": cant_val
                 })
-                registrar_log(f"[{nombre_doc}] Ítem capturado -> Código: {codigo} | Cantidad: {cant_val} | Desc: {desc_limpia}")
+                registrar_log(f"[{nombre_doc}] Ãtem capturado -> CÃ³digo: {codigo} | Cantidad: {cant_val} | Desc: {desc_limpia}")
 
     return items
 
 # ---------------------------------------------------------
-# Motor de Parseo Logístico con Corrección de Cliente y Contacto
+# Motor de Parseo LogÃ­stico con CorrecciÃ³n de Cliente y Contacto
 # ---------------------------------------------------------
 def extract_pdf_full_text(pdf_file):
     try:
@@ -1281,19 +1284,19 @@ def extract_pdf_full_text(pdf_file):
 
 def extract_metadata_general(text):
     meta = {
-        "No. Remisión": "No detectado",
-        "Fecha Emisión": "No detectado",
+        "No. RemisiÃ³n": "No detectado",
+        "Fecha EmisiÃ³n": "No detectado",
         "Cliente / Empresa": "No detectado",
         "Ciudad Destino": "No detectado"
     }
 
-    if (rem_m := re.search(r"(?:No\.|N°|Remisión|Entrega)\s*[:#]?\s*(\d{6,10})", text, re.IGNORECASE)):
-        meta["No. Remisión"] = rem_m.group(1).strip()
+    if (rem_m := re.search(r"(?:No\.|NÂ°|RemisiÃ³n|Entrega)\s*[:#]?\s*(\d{6,10})", text, re.IGNORECASE)):
+        meta["No. RemisiÃ³n"] = rem_m.group(1).strip()
 
     if (f_m := re.search(r"Fecha\s*[:]?\s*(\d{2}/\d{2}/\d{4})", text, re.IGNORECASE)):
-        meta["Fecha Emisión"] = f_m.group(1).strip()
+        meta["Fecha EmisiÃ³n"] = f_m.group(1).strip()
 
-    banned_headers = ["ENTREGA", "MERCANCIA", "REMISIÓN", "ORDEN", "PEDIDOS", "DIRECCIÓN"]
+    banned_headers = ["ENTREGA", "MERCANCIA", "REMISIÃ“N", "ORDEN", "PEDIDOS", "DIRECCIÃ“N"]
     for line in text.split('\n'):
         if "CLIENTE" in line.upper() and ":" in line:
             val = line.split(":", 1)[1].strip()
@@ -1317,7 +1320,7 @@ def extract_observation_text(pdf_file):
             first_page = pdf.pages[0]
             text = first_page.extract_text()
             
-        pattern = r"Observación:\s*(.*?)(?=\n[A-Z]|$)"
+        pattern = r"ObservaciÃ³n:\s*(.*?)(?=\n[A-Z]|$)"
         match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
         
         if match:
@@ -1330,7 +1333,7 @@ def extract_observation_text(pdf_file):
 
 def parse_observation_data(text):
     data = {
-        "Dirección": "No detectado",
+        "DirecciÃ³n": "No detectado",
         "Contacto": "No detectado",
         "Celular": "No detectado",
         "OC": "No detectado"
@@ -1342,18 +1345,18 @@ def parse_observation_data(text):
     if cel_match:
         data["Celular"] = cel_match.group(1).strip()
 
-    cont_match = re.search(r"CONTACTO[:]?\s*([A-ZÁÉÍÓÚÑ\s]+?)(?=\s*-\s*TELEFONO|\s*-\s*TEL|\s*CEL\.|\s*OC|\s*//|$)", text_clean, re.IGNORECASE)
+    cont_match = re.search(r"CONTACTO[:]?\s*([A-ZÃÃ‰ÃÃ“ÃšÃ‘\s]+?)(?=\s*-\s*TELEFONO|\s*-\s*TEL|\s*CEL\.|\s*OC|\s*//|$)", text_clean, re.IGNORECASE)
     if cont_match:
         nombre = cont_match.group(1).strip()
         if len(nombre) > 2:
             data["Contacto"] = nombre
 
-    dir_match = re.search(r"(?:ENTREGAR EN|DIRECCION DE ENVIO|DIRECCIÓN DE ENVÍO|DIRECCIÓN|DIRECCION)[:]?\s*(.*?)(?=\s*//|\s*CONTACTO|\s*HORARIO|\s*OC|$)", text_clean, re.IGNORECASE)
+    dir_match = re.search(r"(?:ENTREGAR EN|DIRECCION DE ENVIO|DIRECCIÃ“N DE ENVÃO|DIRECCIÃ“N|DIRECCION)[:]?\s*(.*?)(?=\s*//|\s*CONTACTO|\s*HORARIO|\s*OC|$)", text_clean, re.IGNORECASE)
     if dir_match:
         dir_val = dir_match.group(1).strip()
-        data["Dirección"] = re.split(r'Basado en Pedidos', dir_val, flags=re.IGNORECASE)[0].strip()
+        data["DirecciÃ³n"] = re.split(r'Basado en Pedidos', dir_val, flags=re.IGNORECASE)[0].strip()
     else:
-        data["Dirección"] = text_clean
+        data["DirecciÃ³n"] = text_clean
 
     if data["Contacto"] != "No detectado":
         data["Contacto"] = data["Contacto"].replace("PRINCIPAL", "").replace("ALMACEN", "").strip()
@@ -1378,15 +1381,15 @@ def generar_link_maps(direccion):
     return "https://www.google.com/maps/search/?api=1&query=" + direccion.strip().replace(" ", "+")
 
 # ---------------------------------------------------------
-# Capa de Abstracción de Entregas y Renderizado
+# Capa de AbstracciÃ³n de Entregas y Renderizado
 # ---------------------------------------------------------
 def obtener_datos_entrega_source(num_entrega):
     env_mode = st.session_state.get("env_mode", "DEV (Google)")
     if env_mode == "PROD (SAP)":
         registrar_log(f"[SAP BTP ODATA MOCK] Consumiendo API_OUTBOUND_DELIVERY_SRV para entrega: {num_entrega}", "INFO")
         return [
-            {"Entrega": f"Entrega_{num_entrega}", "Código": "45230050", "Descripción": "[SAP S/4HANA] TUBERIA PVC", "Cantidad": 10.0},
-            {"Entrega": f"Entrega_{num_entrega}", "Código": "45210080", "Descripción": "[SAP S/4HANA] ACCESORIO PVC", "Cantidad": 5.0}
+            {"Entrega": f"Entrega_{num_entrega}", "CÃ³digo": "45230050", "DescripciÃ³n": "[SAP S/4HANA] TUBERIA PVC", "Cantidad": 10.0},
+            {"Entrega": f"Entrega_{num_entrega}", "CÃ³digo": "45210080", "DescripciÃ³n": "[SAP S/4HANA] ACCESORIO PVC", "Cantidad": 5.0}
         ]
     else:
         pdf_buffer = descargar_pdf_desde_drive(DRIVE_FOLDER_ID, num_entrega)
@@ -1422,7 +1425,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
         pesos_t = []
 
         for _, row in df_resumen.iterrows():
-            codigo_item = str(row['Código']).strip()
+            codigo_item = str(row['CÃ³digo']).strip()
             item_match = get_product_data_from_source(codigo_item, df_bd)
 
             if item_match is not None:
@@ -1442,13 +1445,13 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
         df_resumen["Peso Total (KG)"] = pesos_t
         df_resumen["No."] = [str(i + 1) for i in range(len(df_resumen))]
 
-        columnas_orden = ["No.", "Entrega", "Código", "Descripción", "Cantidad"]
+        columnas_orden = ["No.", "Entrega", "CÃ³digo", "DescripciÃ³n", "Cantidad"]
         if "Peso Unit. (KG)" in df_resumen.columns:
             columnas_orden.extend(["Peso Unit. (KG)", "Peso Total (KG)"])
 
         df_resumen = df_resumen[columnas_orden + ["Destino"]]
 
-        st.markdown(f"### 📋 Tabla Consolidada de Materiales ({len(fuentes_unicas)} Documentos)")
+        st.markdown(f"### ðŸ“‹ Tabla Consolidada de Materiales ({len(fuentes_unicas)} Documentos)")
         st.dataframe(df_resumen.drop(columns=["Destino"]), use_container_width=True)
 
         if "Peso Total (KG)" in df_resumen.columns:
@@ -1457,11 +1460,11 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
             total_docs = len(fuentes_unicas)
 
             st.markdown("---")
-            st.markdown("### 📊 Gran Total Consolidado del Despacho")
+            st.markdown("### ðŸ“Š Gran Total Consolidado del Despacho")
             m1, m2, m3 = st.columns(3)
-            m1.metric("📄 Total Documentos Procesados", f"{total_docs}")
-            m2.metric("📦 Peso Total Combinado (KG)", f"{total_kg:,.2f} KG")
-            m3.metric("🚛 Peso Total Combinado (Toneladas)", f"{total_ton:,.3f} T")
+            m1.metric("ðŸ“„ Total Documentos Procesados", f"{total_docs}")
+            m2.metric("ðŸ“¦ Peso Total Combinado (KG)", f"{total_kg:,.2f} KG")
+            m3.metric("ðŸš› Peso Total Combinado (Toneladas)", f"{total_ton:,.3f} T")
 
             if mostrar_exportacion:
                 st.markdown("---")
@@ -1470,56 +1473,56 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                 
                 if f"saved_data_{tab_key}" not in st.session_state or not isinstance(st.session_state[f"saved_data_{tab_key}"], dict):
                     st.session_state[f"saved_data_{tab_key}"] = {
-                        "dest_name": "DESPACHOS CLIENTE / REMISIÓN",
-                        "dest_address": "DIRECCIÓN REGISTRADA EN REMISIONES",
+                        "dest_name": "DESPACHOS CLIENTE / REMISIÃ“N",
+                        "dest_address": "DIRECCIÃ“N REGISTRADA EN REMISIONES",
                         "d_nombre": "",
                         "d_placa": "",
                         "d_cedula": "",
                         "d_marca": "",
                         "d_celular": "",
                         "d_transp": "",
-                        "elab_nombre": "LOGÍSTICA TUVACOL S.A.",
+                        "elab_nombre": "LOGÃSTICA TUVACOL S.A.",
                         "empaques_info": "Ninguno especificado"
                     }
 
                 with st.form(key=f"form_despacho_{tab_key}"):
                     if not is_local:
-                        st.markdown("### 📄 Datos del Destinatario")
+                        st.markdown("### ðŸ“„ Datos del Destinatario")
                         col_dst1, col_dst2 = st.columns(2)
                         with col_dst1:
                             dest_name_input = st.text_input("Nombre del Destinatario:", value=st.session_state[f"saved_data_{tab_key}"]["dest_name"])
                         with col_dst2:
-                            dest_address_input = st.text_input("Dirección / Teléfono del Destinatario:", value=st.session_state[f"saved_data_{tab_key}"]["dest_address"])
+                            dest_address_input = st.text_input("DirecciÃ³n / TelÃ©fono del Destinatario:", value=st.session_state[f"saved_data_{tab_key}"]["dest_address"])
                     else:
                         dest_name_input = "LOCAL"
                         dest_address_input = "LOCAL"
 
                     st.markdown("---")
-                    st.markdown("### 🚛 Datos del Conductor y Vehiculo")
+                    st.markdown("### ðŸš› Datos del Conductor y Vehiculo")
                     if not is_local:
                         col_drv1, col_drv2, col_drv3 = st.columns(3)
                         with col_drv1:
                             d_nombre_input = st.text_input("Nombre Completo Conductor:", value=st.session_state[f"saved_data_{tab_key}"]["d_nombre"])
-                            d_placa_input = st.text_input("Placa Vehículo:", value=st.session_state[f"saved_data_{tab_key}"]["d_placa"])
+                            d_placa_input = st.text_input("Placa VehÃ­culo:", value=st.session_state[f"saved_data_{tab_key}"]["d_placa"])
                         with col_drv2:
-                            d_cedula_input = st.text_input("Cédula No.:", value=st.session_state[f"saved_data_{tab_key}"]["d_cedula"])
+                            d_cedula_input = st.text_input("CÃ©dula No.:", value=st.session_state[f"saved_data_{tab_key}"]["d_cedula"])
                             d_marca_input = st.text_input("Marca / Modelo / Color:", value=st.session_state[f"saved_data_{tab_key}"]["d_marca"])
                         with col_drv3:
-                            d_celular_input = st.text_input("Celular / Teléfono:", value=st.session_state[f"saved_data_{tab_key}"]["d_celular"])
+                            d_celular_input = st.text_input("Celular / TelÃ©fono:", value=st.session_state[f"saved_data_{tab_key}"]["d_celular"])
                             d_transp_input = st.text_input("Empresa Transportadora:", value=st.session_state[f"saved_data_{tab_key}"]["d_transp"])
                     else:
                         col_drv1, col_drv2 = st.columns(2)
                         with col_drv1:
                             d_nombre_input = st.text_input("Nombre Completo Conductor:", value=st.session_state[f"saved_data_{tab_key}"]["d_nombre"])
-                            d_cedula_input = st.text_input("Cédula No.:", value=st.session_state[f"saved_data_{tab_key}"]["d_cedula"])
+                            d_cedula_input = st.text_input("CÃ©dula No.:", value=st.session_state[f"saved_data_{tab_key}"]["d_cedula"])
                         with col_drv2:
-                            d_placa_input = st.text_input("Placa Vehículo:", value=st.session_state[f"saved_data_{tab_key}"]["d_placa"])
+                            d_placa_input = st.text_input("Placa VehÃ­culo:", value=st.session_state[f"saved_data_{tab_key}"]["d_placa"])
                         d_marca_input = ""
                         d_celular_input = ""
                         d_transp_input = ""
 
                     st.markdown("---")
-                    st.markdown("### 📦 Cantidad de Empaques por Tipo")
+                    st.markdown("### ðŸ“¦ Cantidad de Empaques por Tipo")
                     st.caption("Indique la cantidad utilizada para cada tipo de empaque en este despacho.")
                     empaque_cols1 = st.columns(3)
                     with empaque_cols1[0]:
@@ -1547,10 +1550,10 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     empaques_input = ", ".join(resumen_empaques) if resumen_empaques else "Ninguno especificado"
 
                     st.markdown("---")
-                    st.markdown("### ✍️ Información de Elaboración")
+                    st.markdown("### âœï¸ InformaciÃ³n de ElaboraciÃ³n")
                     elab_nombre_input = st.text_input("Elaborado por (Nombre y Cargo):", value=st.session_state[f"saved_data_{tab_key}"]["elab_nombre"])
 
-                    submitted = st.form_submit_button(label="💾 Guardar Cambios")
+                    submitted = st.form_submit_button(label="ðŸ’¾ Guardar Cambios")
 
                     if submitted:
                         campos_obligatorios = [d_nombre_input, d_cedula_input, d_placa_input, elab_nombre_input]
@@ -1562,7 +1565,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                         if not all(campo.strip() for campo in campos_obligatorios):
                             st.session_state[f"saved_data_{tab_key}"] = None
                             st.session_state.pop(f"consecutivo_num_{tab_key}", None)
-                            st.error("❌ Faltan campos obligatorios por llenar. Complete los datos del destinatario, conductor, vehículo y elaboración antes de guardar.")
+                            st.error("âŒ Faltan campos obligatorios por llenar. Complete los datos del destinatario, conductor, vehÃ­culo y elaboraciÃ³n antes de guardar.")
                         else:
                             st.session_state[f"saved_data_{tab_key}"] = {
                                 "dest_name": dest_name_input.strip(),
@@ -1588,16 +1591,16 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                             )
                             if consecutivo_num is None:
                                 st.session_state[f"saved_data_{tab_key}"] = None
-                                st.error("❌ No fue posible registrar el envío en Supabase. Los formatos siguen bloqueados.")
+                                st.error("âŒ No fue posible registrar el envÃ­o en Supabase. Los formatos siguen bloqueados.")
                             else:
                                 st.session_state[f"consecutivo_num_{tab_key}"] = consecutivo_num
-                                st.success(f"✅ Datos guardados. Consecutivo asignado: No.{str(consecutivo_num).zfill(8)}")
+                                st.success(f"âœ… Datos guardados. Consecutivo asignado: No.{str(consecutivo_num).zfill(8)}")
 
                 saved = st.session_state[f"saved_data_{tab_key}"]
                 st.markdown("---")
-                st.markdown("### Generar Relación De Envio De Mercancia")
+                st.markdown("### Generar RelaciÃ³n De Envio De Mercancia")
                 if saved is None or st.session_state.get(f"consecutivo_num_{tab_key}") is None:
-                    st.warning("🔒 Complete todos los campos obligatorios y haga clic en **'Guardar Cambios'** para habilitar la previsualización y las descargas.")
+                    st.warning("ðŸ”’ Complete todos los campos obligatorios y haga clic en **'Guardar Cambios'** para habilitar la previsualizaciÃ³n y las descargas.")
                 else:
                     dest_info = {"nombre": saved["dest_name"], "direccion": saved["dest_address"]}
                     driver_info = {
@@ -1615,7 +1618,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     else:
                         pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info, consecutivo_num)
 
-                    with st.expander("👁️ Previsualizar Documento Generado (PDF)", expanded=False):
+                    with st.expander("ðŸ‘ï¸ Previsualizar Documento Generado (PDF)", expanded=False):
                         base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
                         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600px" type="application/pdf"></iframe>'
                         st.markdown(pdf_display, unsafe_allow_html=True)
@@ -1627,7 +1630,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     col_exp1, col_exp2 = st.columns(2)
                     with col_exp1:
                         st.download_button(
-                            label="📊 Descargar Formato Oficial Excel (.xlsx)",
+                            label="ðŸ“Š Descargar Formato Oficial Excel (.xlsx)",
                             data=excel_bytes,
                             file_name=f"Relacion_Envio_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1635,7 +1638,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                         )
                     with col_exp2:
                         st.download_button(
-                            label="🖨️ Descargar Formato Oficial PDF (Imprimible)",
+                            label="ðŸ–¨ï¸ Descargar Formato Oficial PDF (Imprimible)",
                             data=pdf_bytes,
                             file_name=f"Relacion_Envio_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
                             mime="application/pdf",
@@ -1643,251 +1646,264 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                         )
             return df_resumen
     else:
-        st.warning("⚠️ No se encontraron productos válidos en los documentos seleccionados.")
+        st.warning("âš ï¸ No se encontraron productos vÃ¡lidos en los documentos seleccionados.")
     return None
 
 # ---------------------------------------------------------
-# Interfaz Principal y Pestañas
+# Interfaz Principal y PestaÃ±as
 # ---------------------------------------------------------
-st.sidebar.markdown(f"👤 **Usuario:** {st.session_state.usuario_actual}")
+st.sidebar.markdown(f"ðŸ‘¤ **Usuario:** {st.session_state.usuario_actual}")
+st.sidebar.markdown(f"ðŸ·ï¸ **Rol:** {st.session_state.get('rol_actual', 'LOGISTICA')}")
 
-if st.sidebar.button("Cerrar Sesión", use_container_width=True):
+if st.sidebar.button("Cerrar SesiÃ³n", use_container_width=True):
     st.session_state.autenticado = False
     st.rerun()
 
 st.sidebar.markdown("---")
-st.sidebar.header("🔐 Modo de Operación")
+st.sidebar.header("ðŸ” Modo de OperaciÃ³n")
 modo_app = st.sidebar.radio("Seleccione la interfaz:", ["Modo Usuario", "Modo Destroller"])
 
 es_dev_autenticado = False
 if modo_app == "Modo Destroller":
-    cedula_input = st.sidebar.text_input("Ingrese Contraseña de Destroller:", type="password")
+    cedula_input = st.sidebar.text_input("Ingrese ContraseÃ±a de Destroller:", type="password")
     if cedula_input.strip() == CEDULA_DEV_CORRECTA:
-        st.sidebar.success("🔓 Acceso Destroller Autorizado")
+        st.sidebar.success("ðŸ”“ Acceso Destroller Autorizado")
         es_dev_autenticado = True
 
 if es_dev_autenticado:
-    env_mode = st.sidebar.radio("Modo Conexión de Datos:", ["DEV (Google)", "PROD (SAP)"], key="env_mode")
+    env_mode = st.sidebar.radio("Modo ConexiÃ³n de Datos:", ["DEV (Google)", "PROD (SAP)"], key="env_mode")
 
 df_bd = fetch_google_sheet_database()
 if df_bd is None: df_bd = cargar_bd_local(BD_LOCAL_PATH)
 
-if st.sidebar.button("🔄 Sincronizar Google Sheets Oficial"):
+if st.sidebar.button("ðŸ”„ Sincronizar Google Sheets Oficial"):
     st.cache_data.clear()
     st.rerun()
 
-st.title("🔄 FlowShift")
-st.markdown("<p style='color: #666; font-size: 16px; margin-top: -15px;'><i>La evolución inteligente de tu gestión administrativa.</i></p>", unsafe_allow_html=True)
+st.title("ðŸ”„ FlowShift")
+st.markdown("<p style='color: #666; font-size: 16px; margin-top: -15px;'><i>La evoluciÃ³n inteligente de tu gestiÃ³n administrativa.</i></p>", unsafe_allow_html=True)
+
+rol_usuario = st.session_state.get("rol_actual", "LOGISTICA")
+tab1 = tab2 = tab3 = tab_local = tab_consulta = tab4 = None
 
 if es_dev_autenticado:
     tab1, tab2, tab3, tab_local, tab_consulta, tab4 = st.tabs([
-        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío", "📤 Relación de Envío Local", "🔎 Consultar Documento", "📜 Logs"
+        "ðŸ” BÃºsqueda por CÃ³digo", "ðŸ“„ Procesar RemisiÃ³n / PDF", "ðŸ“¤ RelaciÃ³n de EnvÃ­o", "ðŸ“¤ RelaciÃ³n de EnvÃ­o Local", "ðŸ”Ž Consultar Documento", "ðŸ“œ Logs"
+    ])
+elif "VENTAS" in rol_usuario:
+    tab1, tab2 = st.tabs([
+        "ðŸ” BÃºsqueda por CÃ³digo", "ðŸ“„ Procesar RemisiÃ³n / PDF"
     ])
 else:
-    tab1, tab2, tab3, tab_local, tab_consulta = st.tabs([
-        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío", "📤 Relación de Envío Local", "🔎 Consultar Documento"
+    tab3, tab_local, tab_consulta = st.tabs([
+        "ðŸ“¤ RelaciÃ³n de EnvÃ­o", "ðŸ“¤ RelaciÃ³n de EnvÃ­o Local", "ðŸ”Ž Consultar Documento"
     ])
 
-with tab1:
-    st.subheader("Consulta Dinámica de Producto")
-    codigo_input = st.text_input("Ingrese Código o Descripción del Artículo", value="", placeholder="Ej. 108001051")
-    cant_input = st.number_input("Cantidad a despachar", min_value=1.0, value=1.0, step=1.0)
-    if codigo_input.strip() != "":
-        item = get_product_data_from_source(codigo_input, df_bd)
-        if item is not None:
-            peso_unit = float(str(item.get('Peso_KG', 0.0)).replace(',', '.'))
-            st.markdown(
-                f"""
-                <div class="product-card">
-                    <p><strong>📦 Código:</strong> {item['Codigo']}</p>
-                    <p><strong>📝 Descripción:</strong> {item['Descripcion']}</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            res_col1, res_col2 = st.columns(2)
-            res_col1.metric("Peso Unitario", f"{peso_unit:.2f} KG")
-            res_col2.metric("Peso Total", f"{peso_unit * cant_input:.2f} KG")
-        else:
-            st.warning("⚠️ No se encontraron coincidencias.")
-
-with tab2:
-    st.subheader("Procesar Remisión / Consulta de Pesos")
-    st.info("ℹ️ Esta pestaña permite consultar pesos desde archivos PDF, sin generar reportes.")
-    if "limpieza_tab2" not in st.session_state:
-        st.session_state.limpieza_tab2 = 0
-    uploaded_files_tab2 = st.file_uploader(
-        "Cargar archivos PDF de remisión",
-        type=["pdf"],
-        accept_multiple_files=True,
-        key=f"uploader_consulta_pesos_{st.session_state.limpieza_tab2}"
-    )
-    if st.button("🗑️ Limpiar PDFs y consulta", key="limpiar_tab2"):
-        st.session_state.limpieza_tab2 += 1
-        st.rerun()
-    lista_fuentes_tab2 = []
-    if uploaded_files_tab2:
-        for file in uploaded_files_tab2:
-            doc_clean, destino = analizar_metadatos_documento(file)
-            lista_fuentes_tab2.append((file, doc_clean, destino))
-    render_procesamiento_despacho(lista_fuentes_tab2, "tab2", mostrar_exportacion=False)
-
-with tab3:
-    st.subheader("📤 Relación de Envío y Control de Empaques")
-    if "limpieza_tab3" not in st.session_state:
-        st.session_state.limpieza_tab3 = 0
-
-    uploaded_files = st.file_uploader(
-        "Cargar PDFs",
-        type=["pdf"],
-        accept_multiple_files=True,
-        key=f"uploader_relacion_envio_{st.session_state.limpieza_tab3}"
-    )
-    if st.button("🗑️ Limpiar PDFs y campos", key="limpiar_tab3"):
-        st.session_state.limpieza_tab3 += 1
-        st.session_state.pop("saved_data_tab3", None)
-        st.session_state.pop("empaques_info_tab3", None)
-        st.session_state.pop("consecutivo_num_tab3", None)
-        st.rerun()
-
-    lista_fuentes = []
-    if uploaded_files:
-        for file in uploaded_files:
-            doc_clean, destino = analizar_metadatos_documento(file)
-            lista_fuentes.append((file, doc_clean, destino))
-    df_resultado_t3 = render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
-
-with tab_local:
-    st.subheader("📤 Relación de Envío Local y Generación de Formato Oficial")
-    if "limpieza_tab_local" not in st.session_state:
-        st.session_state.limpieza_tab_local = 0
-
-    uploaded_files_local = st.file_uploader(
-        "Cargar PDFs para Relación de Envío Local",
-        type=["pdf"],
-        accept_multiple_files=True,
-        key=f"uploader_relacion_envio_local_{st.session_state.limpieza_tab_local}"
-    )
-    lista_fuentes_local = []
-    if uploaded_files_local:
-        for file in uploaded_files_local:
-            doc_clean, destino = analizar_metadatos_documento(file)
-            lista_fuentes_local.append((file, doc_clean, destino))
-    render_procesamiento_despacho(
-        lista_fuentes_local,
-        "tab_local",
-        mostrar_exportacion=True,
-        registrar_func=registrar_envio_local_en_supabase
-    )
-    if st.button("🗑️ Limpiar PDFs y campos locales", key="limpiar_tab_local"):
-        st.session_state.limpieza_tab_local += 1
-        st.session_state.pop("saved_data_tab_local", None)
-        st.session_state.pop("consecutivo_num_tab_local", None)
-        st.rerun()
-
-with tab_consulta:
-    st.subheader("🔎 Consultar Documento Original")
-    st.caption("Busque una Transferencia de Stock (TS), Entrega de Mercancía (EDM) o referencia guardada en el historial.")
-    busqueda_doc = st.text_input("Número de documento o referencia", placeholder="Ej. 4996 o 20006855", key="busqueda_documento_historial")
-
-    if st.button("🔍 Buscar en Historial", key="btn_buscar_historial"):
-        termino = busqueda_doc.strip()
-        if not termino:
-            st.warning("⚠️ Ingrese un número de documento antes de buscar.")
-        else:
-            try:
-                response_general = (
-                    supabase.table("historial_envios")
-                    .select("*")
-                    .ilike("observaciones", f"%{termino}%")
-                    .execute()
+if tab1 is not None:
+    with tab1:
+        st.subheader("Consulta DinÃ¡mica de Producto")
+        codigo_input = st.text_input("Ingrese CÃ³digo o DescripciÃ³n del ArtÃ­culo", value="", placeholder="Ej. 108001051")
+        cant_input = st.number_input("Cantidad a despachar", min_value=1.0, value=1.0, step=1.0)
+        if codigo_input.strip() != "":
+            item = get_product_data_from_source(codigo_input, df_bd)
+            if item is not None:
+                peso_unit = float(str(item.get('Peso_KG', 0.0)).replace(',', '.'))
+                st.markdown(
+                    f"""
+                    <div class="product-card">
+                        <p><strong>ðŸ“¦ CÃ³digo:</strong> {item['Codigo']}</p>
+                        <p><strong>ðŸ“ DescripciÃ³n:</strong> {item['Descripcion']}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
-                response_local = (
-                    supabase.table("historial_envios_local")
-                    .select("*")
-                    .ilike("observaciones", f"%{termino}%")
-                    .execute()
-                )
-                registros = (response_general.data or []) + (response_local.data or [])
-                registros.sort(key=lambda registro: registro.get("consecutivo", registro.get("id", 0)) or 0, reverse=True)
-                if not registros:
-                    st.warning(f"⚠️ No se encontró ningún despacho asociado a '{termino}'.")
-                else:
-                    st.success(f"✅ Se encontraron {len(registros)} despacho(s) asociado(s) a '{termino}'.")
-                    for registro in registros:
-                        consecutivo = registro.get("consecutivo", registro.get("id", "N/A"))
-                        fecha = formatear_fecha_colombia(registro.get("fecha") or registro.get("created_at"))
-                        st.markdown(
-                            f"""
-                            <div class="product-card">
-                                <h4 style="color: #1F3864; margin-top: 0;">Datos del vehículo y conductor</h4>
-                                <p><b>Conductor:</b> {registro.get('conductor_nombre', 'N/A')}</p>
-                                <p><b>Cédula:</b> {registro.get('conductor_cedula', 'N/A')}</p>
-                                <p><b>Placa:</b> {registro.get('vehiculo_placa', 'N/A')}</p>
-                                <p><b>Fecha:</b> {fecha}</p>
-                                <p><b>Peso total:</b> {float(registro.get('peso_total_kg') or 0):,.2f} KG</p>
-                                <p><b>Documentos:</b> {registro.get('total_documentos', 0)}</p>
-                            </div>
-                            """,
-                            unsafe_allow_html=True
-                        )
+                res_col1, res_col2 = st.columns(2)
+                res_col1.metric("Peso Unitario", f"{peso_unit:.2f} KG")
+                res_col2.metric("Peso Total", f"{peso_unit * cant_input:.2f} KG")
+            else:
+                st.warning("âš ï¸ No se encontraron coincidencias.")
 
-                        items_json = registro.get("items_json")
-                        saved_data_json = registro.get("saved_data_json")
-                        if items_json and saved_data_json:
-                            try:
-                                df_historial = pd.DataFrame(items_json)
-                                pdf_historial = generar_pdf_bytes(
-                                    df_historial,
-                                    len(set(df_historial["Entrega"])),
-                                    float(df_historial["Peso Total (KG)"].sum()),
-                                    float(df_historial["Peso Total (KG)"].sum()) / 1000,
-                                    {
-                                        "nombre": saved_data_json.get("d_nombre", ""),
-                                        "cedula": saved_data_json.get("d_cedula", ""),
-                                        "celular": saved_data_json.get("d_celular", ""),
-                                        "placa": saved_data_json.get("d_placa", ""),
-                                        "marca": saved_data_json.get("d_marca", ""),
-                                        "transportadora": saved_data_json.get("d_transp", "")
-                                    },
-                                    {
-                                        "nombre": saved_data_json.get("dest_name", ""),
-                                        "direccion": saved_data_json.get("dest_address", "")
-                                    },
-                                    {"nombre": saved_data_json.get("elab_nombre", "")},
-                                    saved_data_json.get("empaques_info", "Ninguno especificado"),
-                                    consecutivo,
-                                    es_local=not bool(saved_data_json.get("cond_empresa"))
-                                )
-                                st.download_button(
-                                    label=f"📄 Descargar PDF Oficial (No.{str(consecutivo).zfill(8)})",
-                                    data=pdf_historial,
-                                    file_name=f"Relacion_Envio_No_{str(consecutivo).zfill(8)}.pdf",
-                                    mime="application/pdf",
-                                    key=f"dl_historial_{registro.get('id', consecutivo)}"
-                                )
-                            except Exception as error_pdf:
-                                registrar_log(f"Error generando PDF histórico: {error_pdf}", "WARNING")
-                                st.caption("ℹ️ No fue posible reconstruir el PDF de este registro.")
-                        else:
-                            st.caption("ℹ️ Este registro anterior no tiene el detalle necesario para descargar el PDF.")
-            except Exception as e:
-                registrar_log(f"Error consultando historial por documento: {e}", "ERROR")
-                st.error(f"❌ Error al consultar la base de datos: {e}")
+if tab2 is not None:
+    with tab2:
+        st.subheader("Procesar RemisiÃ³n / Consulta de Pesos")
+        st.info("â„¹ï¸ Esta pestaÃ±a permite consultar pesos desde archivos PDF, sin generar reportes.")
+        if "limpieza_tab2" not in st.session_state:
+            st.session_state.limpieza_tab2 = 0
+        uploaded_files_tab2 = st.file_uploader(
+            "Cargar archivos PDF de remisiÃ³n",
+            type=["pdf"],
+            accept_multiple_files=True,
+            key=f"uploader_consulta_pesos_{st.session_state.limpieza_tab2}"
+        )
+        if st.button("ðŸ—‘ï¸ Limpiar PDFs y consulta", key="limpiar_tab2"):
+            st.session_state.limpieza_tab2 += 1
+            st.rerun()
+        lista_fuentes_tab2 = []
+        if uploaded_files_tab2:
+            for file in uploaded_files_tab2:
+                doc_clean, destino = analizar_metadatos_documento(file)
+                lista_fuentes_tab2.append((file, doc_clean, destino))
+        render_procesamiento_despacho(lista_fuentes_tab2, "tab2", mostrar_exportacion=False)
 
-if es_dev_autenticado:
+if tab3 is not None:
+    with tab3:
+        st.subheader("ðŸ“¤ RelaciÃ³n de EnvÃ­o y Control de Empaques")
+        if "limpieza_tab3" not in st.session_state:
+            st.session_state.limpieza_tab3 = 0
+
+        uploaded_files = st.file_uploader(
+            "Cargar PDFs",
+            type=["pdf"],
+            accept_multiple_files=True,
+            key=f"uploader_relacion_envio_{st.session_state.limpieza_tab3}"
+        )
+        if st.button("ðŸ—‘ï¸ Limpiar PDFs y campos", key="limpiar_tab3"):
+            st.session_state.limpieza_tab3 += 1
+            st.session_state.pop("saved_data_tab3", None)
+            st.session_state.pop("empaques_info_tab3", None)
+            st.session_state.pop("consecutivo_num_tab3", None)
+            st.rerun()
+
+        lista_fuentes = []
+        if uploaded_files:
+            for file in uploaded_files:
+                doc_clean, destino = analizar_metadatos_documento(file)
+                lista_fuentes.append((file, doc_clean, destino))
+        df_resultado_t3 = render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
+
+if tab_local is not None:
+    with tab_local:
+        st.subheader("ðŸ“¤ RelaciÃ³n de EnvÃ­o Local y GeneraciÃ³n de Formato Oficial")
+        if "limpieza_tab_local" not in st.session_state:
+            st.session_state.limpieza_tab_local = 0
+
+        uploaded_files_local = st.file_uploader(
+            "Cargar PDFs para RelaciÃ³n de EnvÃ­o Local",
+            type=["pdf"],
+            accept_multiple_files=True,
+            key=f"uploader_relacion_envio_local_{st.session_state.limpieza_tab_local}"
+        )
+        lista_fuentes_local = []
+        if uploaded_files_local:
+            for file in uploaded_files_local:
+                doc_clean, destino = analizar_metadatos_documento(file)
+                lista_fuentes_local.append((file, doc_clean, destino))
+        render_procesamiento_despacho(
+            lista_fuentes_local,
+            "tab_local",
+            mostrar_exportacion=True,
+            registrar_func=registrar_envio_local_en_supabase
+        )
+        if st.button("ðŸ—‘ï¸ Limpiar PDFs y campos locales", key="limpiar_tab_local"):
+            st.session_state.limpieza_tab_local += 1
+            st.session_state.pop("saved_data_tab_local", None)
+            st.session_state.pop("consecutivo_num_tab_local", None)
+            st.rerun()
+
+if tab_consulta is not None:
+    with tab_consulta:
+        st.subheader("ðŸ”Ž Consultar Documento Original")
+        st.caption("Busque una Transferencia de Stock (TS), Entrega de MercancÃ­a (EDM) o referencia guardada en el historial.")
+        busqueda_doc = st.text_input("NÃºmero de documento o referencia", placeholder="Ej. 4996 o 20006855", key="busqueda_documento_historial")
+
+        if st.button("ðŸ” Buscar en Historial", key="btn_buscar_historial"):
+            termino = busqueda_doc.strip()
+            if not termino:
+                st.warning("âš ï¸ Ingrese un nÃºmero de documento antes de buscar.")
+            else:
+                try:
+                    response_general = (
+                        supabase.table("historial_envios")
+                        .select("*")
+                        .ilike("observaciones", f"%{termino}%")
+                        .execute()
+                    )
+                    response_local = (
+                        supabase.table("historial_envios_local")
+                        .select("*")
+                        .ilike("observaciones", f"%{termino}%")
+                        .execute()
+                    )
+                    registros = (response_general.data or []) + (response_local.data or [])
+                    registros.sort(key=lambda registro: registro.get("consecutivo", registro.get("id", 0)) or 0, reverse=True)
+                    if not registros:
+                        st.warning(f"âš ï¸ No se encontrÃ³ ningÃºn despacho asociado a '{termino}'.")
+                    else:
+                        st.success(f"âœ… Se encontraron {len(registros)} despacho(s) asociado(s) a '{termino}'.")
+                        for registro in registros:
+                            consecutivo = registro.get("consecutivo", registro.get("id", "N/A"))
+                            fecha = formatear_fecha_colombia(registro.get("fecha") or registro.get("created_at"))
+                            st.markdown(
+                                f"""
+                                <div class="product-card">
+                                    <h4 style="color: #1F3864; margin-top: 0;">Datos del vehÃ­culo y conductor</h4>
+                                    <p><b>Conductor:</b> {registro.get('conductor_nombre', 'N/A')}</p>
+                                    <p><b>CÃ©dula:</b> {registro.get('conductor_cedula', 'N/A')}</p>
+                                    <p><b>Placa:</b> {registro.get('vehiculo_placa', 'N/A')}</p>
+                                    <p><b>Fecha:</b> {fecha}</p>
+                                    <p><b>Peso total:</b> {float(registro.get('peso_total_kg') or 0):,.2f} KG</p>
+                                    <p><b>Documentos:</b> {registro.get('total_documentos', 0)}</p>
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+
+                            items_json = registro.get("items_json")
+                            saved_data_json = registro.get("saved_data_json")
+                            if items_json and saved_data_json:
+                                try:
+                                    df_historial = pd.DataFrame(items_json)
+                                    pdf_historial = generar_pdf_bytes(
+                                        df_historial,
+                                        len(set(df_historial["Entrega"])),
+                                        float(df_historial["Peso Total (KG)"].sum()),
+                                        float(df_historial["Peso Total (KG)"].sum()) / 1000,
+                                        {
+                                            "nombre": saved_data_json.get("d_nombre", ""),
+                                            "cedula": saved_data_json.get("d_cedula", ""),
+                                            "celular": saved_data_json.get("d_celular", ""),
+                                            "placa": saved_data_json.get("d_placa", ""),
+                                            "marca": saved_data_json.get("d_marca", ""),
+                                            "transportadora": saved_data_json.get("d_transp", "")
+                                        },
+                                        {
+                                            "nombre": saved_data_json.get("dest_name", ""),
+                                            "direccion": saved_data_json.get("dest_address", "")
+                                        },
+                                        {"nombre": saved_data_json.get("elab_nombre", "")},
+                                        saved_data_json.get("empaques_info", "Ninguno especificado"),
+                                        consecutivo,
+                                        es_local=not bool(saved_data_json.get("cond_empresa"))
+                                    )
+                                    st.download_button(
+                                        label=f"ðŸ“„ Descargar PDF Oficial (No.{str(consecutivo).zfill(8)})",
+                                        data=pdf_historial,
+                                        file_name=f"Relacion_Envio_No_{str(consecutivo).zfill(8)}.pdf",
+                                        mime="application/pdf",
+                                        key=f"dl_historial_{registro.get('id', consecutivo)}"
+                                    )
+                                except Exception as error_pdf:
+                                    registrar_log(f"Error generando PDF histÃ³rico: {error_pdf}", "WARNING")
+                                    st.caption("â„¹ï¸ No fue posible reconstruir el PDF de este registro.")
+                            else:
+                                st.caption("â„¹ï¸ Este registro anterior no tiene el detalle necesario para descargar el PDF.")
+                except Exception as e:
+                    registrar_log(f"Error consultando historial por documento: {e}", "ERROR")
+                    st.error(f"âŒ Error al consultar la base de datos: {e}")
+
+if es_dev_autenticado and tab4 is not None:
     with tab4:
-        st.subheader("📜 Log Auditoría de Ejecución")
+        st.subheader("ðŸ“œ Log AuditorÃ­a de EjecuciÃ³n")
         if os.path.exists(LOG_FILENAME):
             try:
                 with open(LOG_FILENAME, "r", encoding="utf-8") as f:
                     log_content = f.read()
                 if log_content.strip():
-                    st.download_button("💾 Descargar log", log_content, LOG_FILENAME, "text/plain")
+                    st.download_button("ðŸ’¾ Descargar log", log_content, LOG_FILENAME, "text/plain")
                     st.text_area("Contenido del Log:", value=log_content, height=400)
                 else:
-                    st.info("ℹ️ El archivo de log está vacío por el momento.")
+                    st.info("â„¹ï¸ El archivo de log estÃ¡ vacÃ­o por el momento.")
             except Exception as e:
                 st.error(f"Error leyendo el archivo de log: {e}")
         else:
-            st.warning("⚠️ El archivo 'log_ejecucion.txt' aún no ha sido creado.")
+            st.warning("âš ï¸ El archivo 'log_ejecucion.txt' aÃºn no ha sido creado.")

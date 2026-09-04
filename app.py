@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import pandas as pd
 import pypdf
 import pdfplumber
@@ -196,6 +196,8 @@ if "usuario_actual" not in st.session_state:
     st.session_state.usuario_actual = None
 if "empresa_actual" not in st.session_state:
     st.session_state.empresa_actual = None
+if "rol_actual" not in st.session_state:
+    st.session_state.rol_actual = "LOGISTICA"
 
 def validar_en_supabase(correo, password):
     try:
@@ -297,6 +299,7 @@ def pantalla_login():
                     st.session_state.autenticado = True
                     st.session_state.usuario_actual = user_data["correo"]
                     st.session_state.empresa_actual = user_data["empresa"]
+                    st.session_state.rol_actual = str(user_data.get("rol", user_data.get("role", "LOGISTICA"))).strip().upper()
                     st.success("¡Licencia verificada con éxito!")
                     st.rerun()
                 else:
@@ -1650,6 +1653,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
 # Interfaz Principal y Pestañas
 # ---------------------------------------------------------
 st.sidebar.markdown(f"👤 **Usuario:** {st.session_state.usuario_actual}")
+st.sidebar.markdown(f"🏷️ **Rol:** {st.session_state.get('rol_actual', 'LOGISTICA')}")
 
 if st.sidebar.button("Cerrar Sesión", use_container_width=True):
     st.session_state.autenticado = False
@@ -1679,203 +1683,215 @@ if st.sidebar.button("🔄 Sincronizar Google Sheets Oficial"):
 st.title("🔄 FlowShift")
 st.markdown("<p style='color: #666; font-size: 16px; margin-top: -15px;'><i>La evolución inteligente de tu gestión administrativa.</i></p>", unsafe_allow_html=True)
 
+rol_usuario = st.session_state.get("rol_actual", "LOGISTICA")
+tab1 = tab2 = tab3 = tab_local = tab_consulta = tab4 = None
+
 if es_dev_autenticado:
     tab1, tab2, tab3, tab_local, tab_consulta, tab4 = st.tabs([
         "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío", "📤 Relación de Envío Local", "🔎 Consultar Documento", "📜 Logs"
     ])
+elif "VENTAS" in rol_usuario:
+    tab1, tab2 = st.tabs([
+        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF"
+    ])
 else:
-    tab1, tab2, tab3, tab_local, tab_consulta = st.tabs([
-        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío", "📤 Relación de Envío Local", "🔎 Consultar Documento"
+    tab3, tab_local, tab_consulta = st.tabs([
+        "📤 Relación de Envío", "📤 Relación de Envío Local", "🔎 Consultar Documento"
     ])
 
-with tab1:
-    st.subheader("Consulta Dinámica de Producto")
-    codigo_input = st.text_input("Ingrese Código o Descripción del Artículo", value="", placeholder="Ej. 108001051")
-    cant_input = st.number_input("Cantidad a despachar", min_value=1.0, value=1.0, step=1.0)
-    if codigo_input.strip() != "":
-        item = get_product_data_from_source(codigo_input, df_bd)
-        if item is not None:
-            peso_unit = float(str(item.get('Peso_KG', 0.0)).replace(',', '.'))
-            st.markdown(
-                f"""
-                <div class="product-card">
-                    <p><strong>📦 Código:</strong> {item['Codigo']}</p>
-                    <p><strong>📝 Descripción:</strong> {item['Descripcion']}</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            res_col1, res_col2 = st.columns(2)
-            res_col1.metric("Peso Unitario", f"{peso_unit:.2f} KG")
-            res_col2.metric("Peso Total", f"{peso_unit * cant_input:.2f} KG")
-        else:
-            st.warning("⚠️ No se encontraron coincidencias.")
-
-with tab2:
-    st.subheader("Procesar Remisión / Consulta de Pesos")
-    st.info("ℹ️ Esta pestaña permite consultar pesos desde archivos PDF, sin generar reportes.")
-    if "limpieza_tab2" not in st.session_state:
-        st.session_state.limpieza_tab2 = 0
-    uploaded_files_tab2 = st.file_uploader(
-        "Cargar archivos PDF de remisión",
-        type=["pdf"],
-        accept_multiple_files=True,
-        key=f"uploader_consulta_pesos_{st.session_state.limpieza_tab2}"
-    )
-    if st.button("🗑️ Limpiar PDFs y consulta", key="limpiar_tab2"):
-        st.session_state.limpieza_tab2 += 1
-        st.rerun()
-    lista_fuentes_tab2 = []
-    if uploaded_files_tab2:
-        for file in uploaded_files_tab2:
-            doc_clean, destino = analizar_metadatos_documento(file)
-            lista_fuentes_tab2.append((file, doc_clean, destino))
-    render_procesamiento_despacho(lista_fuentes_tab2, "tab2", mostrar_exportacion=False)
-
-with tab3:
-    st.subheader("📤 Relación de Envío y Control de Empaques")
-    if "limpieza_tab3" not in st.session_state:
-        st.session_state.limpieza_tab3 = 0
-
-    uploaded_files = st.file_uploader(
-        "Cargar PDFs",
-        type=["pdf"],
-        accept_multiple_files=True,
-        key=f"uploader_relacion_envio_{st.session_state.limpieza_tab3}"
-    )
-    if st.button("🗑️ Limpiar PDFs y campos", key="limpiar_tab3"):
-        st.session_state.limpieza_tab3 += 1
-        st.session_state.pop("saved_data_tab3", None)
-        st.session_state.pop("empaques_info_tab3", None)
-        st.session_state.pop("consecutivo_num_tab3", None)
-        st.rerun()
-
-    lista_fuentes = []
-    if uploaded_files:
-        for file in uploaded_files:
-            doc_clean, destino = analizar_metadatos_documento(file)
-            lista_fuentes.append((file, doc_clean, destino))
-    df_resultado_t3 = render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
-
-with tab_local:
-    st.subheader("📤 Relación de Envío Local y Generación de Formato Oficial")
-    if "limpieza_tab_local" not in st.session_state:
-        st.session_state.limpieza_tab_local = 0
-
-    uploaded_files_local = st.file_uploader(
-        "Cargar PDFs para Relación de Envío Local",
-        type=["pdf"],
-        accept_multiple_files=True,
-        key=f"uploader_relacion_envio_local_{st.session_state.limpieza_tab_local}"
-    )
-    lista_fuentes_local = []
-    if uploaded_files_local:
-        for file in uploaded_files_local:
-            doc_clean, destino = analizar_metadatos_documento(file)
-            lista_fuentes_local.append((file, doc_clean, destino))
-    render_procesamiento_despacho(
-        lista_fuentes_local,
-        "tab_local",
-        mostrar_exportacion=True,
-        registrar_func=registrar_envio_local_en_supabase
-    )
-    if st.button("🗑️ Limpiar PDFs y campos locales", key="limpiar_tab_local"):
-        st.session_state.limpieza_tab_local += 1
-        st.session_state.pop("saved_data_tab_local", None)
-        st.session_state.pop("consecutivo_num_tab_local", None)
-        st.rerun()
-
-with tab_consulta:
-    st.subheader("🔎 Consultar Documento Original")
-    st.caption("Busque una Transferencia de Stock (TS), Entrega de Mercancía (EDM) o referencia guardada en el historial.")
-    busqueda_doc = st.text_input("Número de documento o referencia", placeholder="Ej. 4996 o 20006855", key="busqueda_documento_historial")
-
-    if st.button("🔍 Buscar en Historial", key="btn_buscar_historial"):
-        termino = busqueda_doc.strip()
-        if not termino:
-            st.warning("⚠️ Ingrese un número de documento antes de buscar.")
-        else:
-            try:
-                response_general = (
-                    supabase.table("historial_envios")
-                    .select("*")
-                    .ilike("observaciones", f"%{termino}%")
-                    .execute()
+if tab1 is not None:
+    with tab1:
+        st.subheader("Consulta Dinámica de Producto")
+        codigo_input = st.text_input("Ingrese Código o Descripción del Artículo", value="", placeholder="Ej. 108001051")
+        cant_input = st.number_input("Cantidad a despachar", min_value=1.0, value=1.0, step=1.0)
+        if codigo_input.strip() != "":
+            item = get_product_data_from_source(codigo_input, df_bd)
+            if item is not None:
+                peso_unit = float(str(item.get('Peso_KG', 0.0)).replace(',', '.'))
+                st.markdown(
+                    f"""
+                    <div class="product-card">
+                        <p><strong>📦 Código:</strong> {item['Codigo']}</p>
+                        <p><strong>📝 Descripción:</strong> {item['Descripcion']}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
-                response_local = (
-                    supabase.table("historial_envios_local")
-                    .select("*")
-                    .ilike("observaciones", f"%{termino}%")
-                    .execute()
-                )
-                registros = (response_general.data or []) + (response_local.data or [])
-                registros.sort(key=lambda registro: registro.get("consecutivo", registro.get("id", 0)) or 0, reverse=True)
-                if not registros:
-                    st.warning(f"⚠️ No se encontró ningún despacho asociado a '{termino}'.")
-                else:
-                    st.success(f"✅ Se encontraron {len(registros)} despacho(s) asociado(s) a '{termino}'.")
-                    for registro in registros:
-                        consecutivo = registro.get("consecutivo", registro.get("id", "N/A"))
-                        fecha = formatear_fecha_colombia(registro.get("fecha") or registro.get("created_at"))
-                        st.markdown(
-                            f"""
-                            <div class="product-card">
-                                <h4 style="color: #1F3864; margin-top: 0;">Datos del vehículo y conductor</h4>
-                                <p><b>Conductor:</b> {registro.get('conductor_nombre', 'N/A')}</p>
-                                <p><b>Cédula:</b> {registro.get('conductor_cedula', 'N/A')}</p>
-                                <p><b>Placa:</b> {registro.get('vehiculo_placa', 'N/A')}</p>
-                                <p><b>Fecha:</b> {fecha}</p>
-                                <p><b>Peso total:</b> {float(registro.get('peso_total_kg') or 0):,.2f} KG</p>
-                                <p><b>Documentos:</b> {registro.get('total_documentos', 0)}</p>
-                            </div>
-                            """,
-                            unsafe_allow_html=True
-                        )
+                res_col1, res_col2 = st.columns(2)
+                res_col1.metric("Peso Unitario", f"{peso_unit:.2f} KG")
+                res_col2.metric("Peso Total", f"{peso_unit * cant_input:.2f} KG")
+            else:
+                st.warning("⚠️ No se encontraron coincidencias.")
 
-                        items_json = registro.get("items_json")
-                        saved_data_json = registro.get("saved_data_json")
-                        if items_json and saved_data_json:
-                            try:
-                                df_historial = pd.DataFrame(items_json)
-                                pdf_historial = generar_pdf_bytes(
-                                    df_historial,
-                                    len(set(df_historial["Entrega"])),
-                                    float(df_historial["Peso Total (KG)"].sum()),
-                                    float(df_historial["Peso Total (KG)"].sum()) / 1000,
-                                    {
-                                        "nombre": saved_data_json.get("d_nombre", ""),
-                                        "cedula": saved_data_json.get("d_cedula", ""),
-                                        "celular": saved_data_json.get("d_celular", ""),
-                                        "placa": saved_data_json.get("d_placa", ""),
-                                        "marca": saved_data_json.get("d_marca", ""),
-                                        "transportadora": saved_data_json.get("d_transp", "")
-                                    },
-                                    {
-                                        "nombre": saved_data_json.get("dest_name", ""),
-                                        "direccion": saved_data_json.get("dest_address", "")
-                                    },
-                                    {"nombre": saved_data_json.get("elab_nombre", "")},
-                                    saved_data_json.get("empaques_info", "Ninguno especificado"),
-                                    consecutivo,
-                                    es_local=not bool(saved_data_json.get("cond_empresa"))
-                                )
-                                st.download_button(
-                                    label=f"📄 Descargar PDF Oficial (No.{str(consecutivo).zfill(8)})",
-                                    data=pdf_historial,
-                                    file_name=f"Relacion_Envio_No_{str(consecutivo).zfill(8)}.pdf",
-                                    mime="application/pdf",
-                                    key=f"dl_historial_{registro.get('id', consecutivo)}"
-                                )
-                            except Exception as error_pdf:
-                                registrar_log(f"Error generando PDF histórico: {error_pdf}", "WARNING")
-                                st.caption("ℹ️ No fue posible reconstruir el PDF de este registro.")
-                        else:
-                            st.caption("ℹ️ Este registro anterior no tiene el detalle necesario para descargar el PDF.")
-            except Exception as e:
-                registrar_log(f"Error consultando historial por documento: {e}", "ERROR")
-                st.error(f"❌ Error al consultar la base de datos: {e}")
+if tab2 is not None:
+    with tab2:
+        st.subheader("Procesar Remisión / Consulta de Pesos")
+        st.info("ℹ️ Esta pestaña permite consultar pesos desde archivos PDF, sin generar reportes.")
+        if "limpieza_tab2" not in st.session_state:
+            st.session_state.limpieza_tab2 = 0
+        uploaded_files_tab2 = st.file_uploader(
+            "Cargar archivos PDF de remisión",
+            type=["pdf"],
+            accept_multiple_files=True,
+            key=f"uploader_consulta_pesos_{st.session_state.limpieza_tab2}"
+        )
+        if st.button("🗑️ Limpiar PDFs y consulta", key="limpiar_tab2"):
+            st.session_state.limpieza_tab2 += 1
+            st.rerun()
+        lista_fuentes_tab2 = []
+        if uploaded_files_tab2:
+            for file in uploaded_files_tab2:
+                doc_clean, destino = analizar_metadatos_documento(file)
+                lista_fuentes_tab2.append((file, doc_clean, destino))
+        render_procesamiento_despacho(lista_fuentes_tab2, "tab2", mostrar_exportacion=False)
 
-if es_dev_autenticado:
+if tab3 is not None:
+    with tab3:
+        st.subheader("📤 Relación de Envío y Control de Empaques")
+        if "limpieza_tab3" not in st.session_state:
+            st.session_state.limpieza_tab3 = 0
+
+        uploaded_files = st.file_uploader(
+            "Cargar PDFs",
+            type=["pdf"],
+            accept_multiple_files=True,
+            key=f"uploader_relacion_envio_{st.session_state.limpieza_tab3}"
+        )
+        if st.button("🗑️ Limpiar PDFs y campos", key="limpiar_tab3"):
+            st.session_state.limpieza_tab3 += 1
+            st.session_state.pop("saved_data_tab3", None)
+            st.session_state.pop("empaques_info_tab3", None)
+            st.session_state.pop("consecutivo_num_tab3", None)
+            st.rerun()
+
+        lista_fuentes = []
+        if uploaded_files:
+            for file in uploaded_files:
+                doc_clean, destino = analizar_metadatos_documento(file)
+                lista_fuentes.append((file, doc_clean, destino))
+        df_resultado_t3 = render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
+
+if tab_local is not None:
+    with tab_local:
+        st.subheader("📤 Relación de Envío Local y Generación de Formato Oficial")
+        if "limpieza_tab_local" not in st.session_state:
+            st.session_state.limpieza_tab_local = 0
+
+        uploaded_files_local = st.file_uploader(
+            "Cargar PDFs para Relación de Envío Local",
+            type=["pdf"],
+            accept_multiple_files=True,
+            key=f"uploader_relacion_envio_local_{st.session_state.limpieza_tab_local}"
+        )
+        lista_fuentes_local = []
+        if uploaded_files_local:
+            for file in uploaded_files_local:
+                doc_clean, destino = analizar_metadatos_documento(file)
+                lista_fuentes_local.append((file, doc_clean, destino))
+        render_procesamiento_despacho(
+            lista_fuentes_local,
+            "tab_local",
+            mostrar_exportacion=True,
+            registrar_func=registrar_envio_local_en_supabase
+        )
+        if st.button("🗑️ Limpiar PDFs y campos locales", key="limpiar_tab_local"):
+            st.session_state.limpieza_tab_local += 1
+            st.session_state.pop("saved_data_tab_local", None)
+            st.session_state.pop("consecutivo_num_tab_local", None)
+            st.rerun()
+
+if tab_consulta is not None:
+    with tab_consulta:
+        st.subheader("🔎 Consultar Documento Original")
+        st.caption("Busque una Transferencia de Stock (TS), Entrega de Mercancía (EDM) o referencia guardada en el historial.")
+        busqueda_doc = st.text_input("Número de documento o referencia", placeholder="Ej. 4996 o 20006855", key="busqueda_documento_historial")
+
+        if st.button("🔍 Buscar en Historial", key="btn_buscar_historial"):
+            termino = busqueda_doc.strip()
+            if not termino:
+                st.warning("⚠️ Ingrese un número de documento antes de buscar.")
+            else:
+                try:
+                    response_general = (
+                        supabase.table("historial_envios")
+                        .select("*")
+                        .ilike("observaciones", f"%{termino}%")
+                        .execute()
+                    )
+                    response_local = (
+                        supabase.table("historial_envios_local")
+                        .select("*")
+                        .ilike("observaciones", f"%{termino}%")
+                        .execute()
+                    )
+                    registros = (response_general.data or []) + (response_local.data or [])
+                    registros.sort(key=lambda registro: registro.get("consecutivo", registro.get("id", 0)) or 0, reverse=True)
+                    if not registros:
+                        st.warning(f"⚠️ No se encontró ningún despacho asociado a '{termino}'.")
+                    else:
+                        st.success(f"✅ Se encontraron {len(registros)} despacho(s) asociado(s) a '{termino}'.")
+                        for registro in registros:
+                            consecutivo = registro.get("consecutivo", registro.get("id", "N/A"))
+                            fecha = formatear_fecha_colombia(registro.get("fecha") or registro.get("created_at"))
+                            st.markdown(
+                                f"""
+                                <div class="product-card">
+                                    <h4 style="color: #1F3864; margin-top: 0;">Datos del vehículo y conductor</h4>
+                                    <p><b>Conductor:</b> {registro.get('conductor_nombre', 'N/A')}</p>
+                                    <p><b>Cédula:</b> {registro.get('conductor_cedula', 'N/A')}</p>
+                                    <p><b>Placa:</b> {registro.get('vehiculo_placa', 'N/A')}</p>
+                                    <p><b>Fecha:</b> {fecha}</p>
+                                    <p><b>Peso total:</b> {float(registro.get('peso_total_kg') or 0):,.2f} KG</p>
+                                    <p><b>Documentos:</b> {registro.get('total_documentos', 0)}</p>
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+
+                            items_json = registro.get("items_json")
+                            saved_data_json = registro.get("saved_data_json")
+                            if items_json and saved_data_json:
+                                try:
+                                    df_historial = pd.DataFrame(items_json)
+                                    pdf_historial = generar_pdf_bytes(
+                                        df_historial,
+                                        len(set(df_historial["Entrega"])),
+                                        float(df_historial["Peso Total (KG)"].sum()),
+                                        float(df_historial["Peso Total (KG)"].sum()) / 1000,
+                                        {
+                                            "nombre": saved_data_json.get("d_nombre", ""),
+                                            "cedula": saved_data_json.get("d_cedula", ""),
+                                            "celular": saved_data_json.get("d_celular", ""),
+                                            "placa": saved_data_json.get("d_placa", ""),
+                                            "marca": saved_data_json.get("d_marca", ""),
+                                            "transportadora": saved_data_json.get("d_transp", "")
+                                        },
+                                        {
+                                            "nombre": saved_data_json.get("dest_name", ""),
+                                            "direccion": saved_data_json.get("dest_address", "")
+                                        },
+                                        {"nombre": saved_data_json.get("elab_nombre", "")},
+                                        saved_data_json.get("empaques_info", "Ninguno especificado"),
+                                        consecutivo,
+                                        es_local=not bool(saved_data_json.get("cond_empresa"))
+                                    )
+                                    st.download_button(
+                                        label=f"📄 Descargar PDF Oficial (No.{str(consecutivo).zfill(8)})",
+                                        data=pdf_historial,
+                                        file_name=f"Relacion_Envio_No_{str(consecutivo).zfill(8)}.pdf",
+                                        mime="application/pdf",
+                                        key=f"dl_historial_{registro.get('id', consecutivo)}"
+                                    )
+                                except Exception as error_pdf:
+                                    registrar_log(f"Error generando PDF histórico: {error_pdf}", "WARNING")
+                                    st.caption("ℹ️ No fue posible reconstruir el PDF de este registro.")
+                            else:
+                                st.caption("ℹ️ Este registro anterior no tiene el detalle necesario para descargar el PDF.")
+                except Exception as e:
+                    registrar_log(f"Error consultando historial por documento: {e}", "ERROR")
+                    st.error(f"❌ Error al consultar la base de datos: {e}")
+
+if es_dev_autenticado and tab4 is not None:
     with tab4:
         st.subheader("📜 Log Auditoría de Ejecución")
         if os.path.exists(LOG_FILENAME):
