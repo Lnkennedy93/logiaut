@@ -1097,6 +1097,24 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
     return buffer.getvalue()
 
 def generar_pdf_local_bytes(df_resumen, saved_data, observaciones_texto, consecutivo_num):
+    filas_consolidadas = []
+    for entrega, grupo_documento in df_resumen.groupby("Entrega", sort=False):
+        cliente = grupo_documento["Cliente"].iloc[0] if "Cliente" in grupo_documento else "CLIENTE GENERAL"
+        es_mts = grupo_documento["Descripción"].astype(str).str.upper().str.contains("MTS|TUBERIA", na=False)
+        for tipo, grupo_tipo in (("MTS", grupo_documento[es_mts]), ("UND", grupo_documento[~es_mts])):
+            if grupo_tipo.empty:
+                continue
+            filas_consolidadas.append({
+                "Entrega": entrega,
+                "Cliente": cliente,
+                "Código": grupo_tipo["Código"].iloc[0] if len(grupo_tipo) == 1 else "VARIOS",
+                "Descripción": "TUBERIA CONSOLIDADA" if tipo == "MTS" else "ACCESORIOS / VARIOS CONSOLIDADOS",
+                "Cantidad": float(grupo_tipo["Cantidad"].sum()),
+                "Peso Unit. (KG)": 0.0,
+                "Peso Total (KG)": float(grupo_tipo["Peso Total (KG)"].sum()),
+                "Destino": grupo_tipo["Destino"].iloc[0]
+            })
+    df_resumen = pd.DataFrame(filas_consolidadas)
     return generar_pdf_bytes(
         df_resumen,
         len(set(df_resumen["Entrega"])),
@@ -1124,7 +1142,26 @@ def analizar_metadatos_documento(pdf_source):
             pdf_source.seek(0)
         with pdfplumber.open(pdf_source) as pdf:
             if pdf.pages:
-                texto_pagina1 = pdf.pages[0].extract_text() or ""
+                pagina = pdf.pages[0]
+                texto_pagina1 = pagina.extract_text() or ""
+                palabras = pagina.extract_words()
+                etiquetas_cliente = [p for p in palabras if p["text"].upper().rstrip(":") == "CLIENTE"]
+                if etiquetas_cliente:
+                    etiqueta = etiquetas_cliente[0]
+                    cliente_words = [
+                        p for p in palabras
+                        if p["top"] >= etiqueta["bottom"] - 1
+                        and p["top"] <= etiqueta["bottom"] + 32
+                        and p["x1"] >= etiqueta["x0"] - 5
+                        and p["x0"] <= etiqueta["x1"] + 260
+                        and p["text"].upper().rstrip(":") not in {
+                            "NIT", "DIRECCION", "DIRECCIÓN", "CIUDAD", "TELEFONO",
+                            "TELÉFONO", "FECHA", "VENCIMIENTO"
+                        }
+                    ]
+                    cliente_words.sort(key=lambda p: (p["top"], p["x0"]))
+                    if cliente_words:
+                        cliente_nombre = " ".join(p["text"] for p in cliente_words).strip()
     except Exception as error:
         registrar_log(f"No se pudo identificar los metadatos del documento: {error}", "WARNING")
         return "DOCUMENTO No. S/N", "DESTINO GENERAL", "CLIENTE GENERAL"
