@@ -243,6 +243,30 @@ def registrar_envio_en_supabase(saved_data, df_resumen, observaciones_texto):
         registrar_log(f"Error registrando envío en Supabase: {e}", "ERROR")
         return None
 
+def registrar_envio_local_en_supabase(saved_data, df_resumen, observaciones_texto):
+    try:
+        payload = {
+            "usuario": st.session_state.get("usuario_actual", "Desconocido"),
+            "peso_total_kg": float(df_resumen["Peso Total (KG)"].sum()),
+            "total_documentos": len(set(df_resumen["Entrega"])),
+            "conductor_nombre": saved_data.get("d_nombre", ""),
+            "conductor_cedula": saved_data.get("d_cedula", ""),
+            "vehiculo_placa": saved_data.get("d_placa", ""),
+            "empresa_transporte": saved_data.get("d_transp", ""),
+            "destinos": ", ".join(sorted(set(df_resumen["Destino"].astype(str)))),
+            "observaciones": observaciones_texto,
+            "items_json": json.loads(df_resumen.to_json(orient="records")),
+            "saved_data_json": saved_data
+        }
+        response = supabase.table("historial_envios_local").insert(payload).execute()
+        if response.data:
+            registro = response.data[0]
+            return registro.get("consecutivo", registro.get("id"))
+        return None
+    except Exception as e:
+        registrar_log(f"Error registrando envío local en Supabase: {e}", "ERROR")
+        return None
+
 def formatear_fecha_colombia(fecha_raw):
     if not fecha_raw:
         return "N/A"
@@ -1323,7 +1347,7 @@ def obtener_datos_entrega_source(num_entrega):
         if pdf_buffer: return extraer_tabla_materiales(pdf_buffer, nombre_doc=f"Entrega_{num_entrega}")
         return []
 
-def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=True):
+def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=True, registrar_func=registrar_envio_en_supabase):
     if not lista_fuentes:
         return
 
@@ -1395,6 +1419,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
 
             if mostrar_exportacion:
                 st.markdown("---")
+                revision_formulario = st.session_state.get(f"limpieza_{tab_key}", 0)
                 
                 if f"saved_data_{tab_key}" not in st.session_state or not isinstance(st.session_state[f"saved_data_{tab_key}"], dict):
                     st.session_state[f"saved_data_{tab_key}"] = {
@@ -1436,19 +1461,19 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                     st.caption("Indique la cantidad utilizada para cada tipo de empaque en este despacho.")
                     empaque_cols1 = st.columns(3)
                     with empaque_cols1[0]:
-                        cant_estibas = st.number_input("Estibas", min_value=0, value=0, step=1, key=f"estiba_{tab_key}_{st.session_state.limpieza_tab3}")
+                        cant_estibas = st.number_input("Estibas", min_value=0, value=0, step=1, key=f"estiba_{tab_key}_{revision_formulario}")
                     with empaque_cols1[1]:
-                        cant_guacales = st.number_input("Guacales", min_value=0, value=0, step=1, key=f"guacal_{tab_key}_{st.session_state.limpieza_tab3}")
+                        cant_guacales = st.number_input("Guacales", min_value=0, value=0, step=1, key=f"guacal_{tab_key}_{revision_formulario}")
                     with empaque_cols1[2]:
-                        cant_cajas = st.number_input("Cajas", min_value=0, value=0, step=1, key=f"caja_{tab_key}_{st.session_state.limpieza_tab3}")
+                        cant_cajas = st.number_input("Cajas", min_value=0, value=0, step=1, key=f"caja_{tab_key}_{revision_formulario}")
 
                     empaque_cols2 = st.columns(3)
                     with empaque_cols2[0]:
-                        cant_sobres = st.number_input("Sobres", min_value=0, value=0, step=1, key=f"sobre_{tab_key}_{st.session_state.limpieza_tab3}")
+                        cant_sobres = st.number_input("Sobres", min_value=0, value=0, step=1, key=f"sobre_{tab_key}_{revision_formulario}")
                     with empaque_cols2[1]:
-                        cant_paquetes = st.number_input("Paquetes", min_value=0, value=0, step=1, key=f"paquete_{tab_key}_{st.session_state.limpieza_tab3}")
+                        cant_paquetes = st.number_input("Paquetes", min_value=0, value=0, step=1, key=f"paquete_{tab_key}_{revision_formulario}")
                     with empaque_cols2[2]:
-                        cant_tubos = st.number_input("Tubos", min_value=0, value=0, step=1, key=f"tubo_{tab_key}_{st.session_state.limpieza_tab3}")
+                        cant_tubos = st.number_input("Tubos", min_value=0, value=0, step=1, key=f"tubo_{tab_key}_{revision_formulario}")
 
                     resumen_empaques = []
                     if cant_estibas > 0: resumen_empaques.append(f"{cant_estibas} Estiba(s)")
@@ -1493,7 +1518,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
                                 f"{total_kg:,.2f} KG | DOCS: {', '.join(sorted(set(df_resumen['Entrega'].astype(str))))} | "
                                 f"Empaques: {empaques_input}"
                             )
-                            consecutivo_num = registrar_envio_en_supabase(
+                            consecutivo_num = registrar_func(
                                 st.session_state[f"saved_data_{tab_key}"],
                                 df_resumen,
                                 observaciones_guardado
@@ -1588,13 +1613,13 @@ st.title("🔄 FlowShift")
 st.markdown("<p style='color: #666; font-size: 16px; margin-top: -15px;'><i>La evolución inteligente de tu gestión administrativa.</i></p>", unsafe_allow_html=True)
 
 if es_dev_autenticado:
-    tab1, tab2, tab3, tab_consulta, tab_rutas, tab_extractor, tab_maestro, tab4 = st.tabs([
-        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío", "🔎 Consultar Documento",
+    tab1, tab2, tab3, tab_local, tab_consulta, tab_rutas, tab_extractor, tab_maestro, tab4 = st.tabs([
+        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío", "📤 Relación de Envío Local", "🔎 Consultar Documento",
         "Gestión de Rutas", "Clasificador de Rutas", "🗂️ Registro Maestro", "📜 Logs"
     ])
 else:
-    tab1, tab2, tab3, tab_consulta = st.tabs([
-        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío", "🔎 Consultar Documento"
+    tab1, tab2, tab3, tab_local, tab_consulta = st.tabs([
+        "🔍 Búsqueda por Código", "📄 Procesar Remisión / PDF", "📤 Relación de Envío", "📤 Relación de Envío Local", "🔎 Consultar Documento"
     ])
 
 with tab1:
@@ -1666,6 +1691,34 @@ with tab3:
             lista_fuentes.append((file, doc_clean, destino))
     df_resultado_t3 = render_procesamiento_despacho(lista_fuentes, "tab3", mostrar_exportacion=True)
 
+with tab_local:
+    st.subheader("📤 Relación de Envío Local y Generación de Formato Oficial")
+    if "limpieza_tab_local" not in st.session_state:
+        st.session_state.limpieza_tab_local = 0
+
+    uploaded_files_local = st.file_uploader(
+        "Cargar PDFs para Relación de Envío Local",
+        type=["pdf"],
+        accept_multiple_files=True,
+        key=f"uploader_relacion_envio_local_{st.session_state.limpieza_tab_local}"
+    )
+    lista_fuentes_local = []
+    if uploaded_files_local:
+        for file in uploaded_files_local:
+            doc_clean, destino = analizar_metadatos_documento(file)
+            lista_fuentes_local.append((file, doc_clean, destino))
+    render_procesamiento_despacho(
+        lista_fuentes_local,
+        "tab_local",
+        mostrar_exportacion=True,
+        registrar_func=registrar_envio_local_en_supabase
+    )
+    if st.button("🗑️ Limpiar PDFs y campos locales", key="limpiar_tab_local"):
+        st.session_state.limpieza_tab_local += 1
+        st.session_state.pop("saved_data_tab_local", None)
+        st.session_state.pop("consecutivo_num_tab_local", None)
+        st.rerun()
+
 with tab_consulta:
     st.subheader("🔎 Consultar Documento Original")
     st.caption("Busque una Transferencia de Stock (TS), Entrega de Mercancía (EDM) o referencia guardada en el historial.")
@@ -1677,14 +1730,20 @@ with tab_consulta:
             st.warning("⚠️ Ingrese un número de documento antes de buscar.")
         else:
             try:
-                response = (
+                response_general = (
                     supabase.table("historial_envios")
                     .select("*")
                     .ilike("observaciones", f"%{termino}%")
-                    .order("consecutivo", desc=True)
                     .execute()
                 )
-                registros = response.data or []
+                response_local = (
+                    supabase.table("historial_envios_local")
+                    .select("*")
+                    .ilike("observaciones", f"%{termino}%")
+                    .execute()
+                )
+                registros = (response_general.data or []) + (response_local.data or [])
+                registros.sort(key=lambda registro: registro.get("consecutivo", registro.get("id", 0)) or 0, reverse=True)
                 if not registros:
                     st.warning(f"⚠️ No se encontró ningún despacho asociado a '{termino}'.")
                 else:
