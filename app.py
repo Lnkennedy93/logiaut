@@ -10,6 +10,7 @@ import re
 import os
 import io
 import base64
+import json
 from xml.sax.saxutils import escape
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -229,7 +230,9 @@ def registrar_envio_en_supabase(saved_data, df_resumen, observaciones_texto):
             "vehiculo_placa": saved_data.get("d_placa", ""),
             "empresa_transporte": saved_data.get("d_transp", ""),
             "destinos": destinos_str,
-            "observaciones": observaciones_texto
+            "observaciones": observaciones_texto,
+            "items_json": json.loads(df_resumen.to_json(orient="records")),
+            "saved_data_json": saved_data
         }
         response = supabase.table("historial_envios").insert(payload).execute()
         if response.data:
@@ -1703,6 +1706,45 @@ with tab_consulta:
                             """,
                             unsafe_allow_html=True
                         )
+
+                        items_json = registro.get("items_json")
+                        saved_data_json = registro.get("saved_data_json")
+                        if items_json and saved_data_json:
+                            try:
+                                df_historial = pd.DataFrame(items_json)
+                                pdf_historial = generar_pdf_bytes(
+                                    df_historial,
+                                    len(set(df_historial["Entrega"])),
+                                    float(df_historial["Peso Total (KG)"].sum()),
+                                    float(df_historial["Peso Total (KG)"].sum()) / 1000,
+                                    {
+                                        "nombre": saved_data_json.get("d_nombre", ""),
+                                        "cedula": saved_data_json.get("d_cedula", ""),
+                                        "celular": saved_data_json.get("d_celular", ""),
+                                        "placa": saved_data_json.get("d_placa", ""),
+                                        "marca": saved_data_json.get("d_marca", ""),
+                                        "transportadora": saved_data_json.get("d_transp", "")
+                                    },
+                                    {
+                                        "nombre": saved_data_json.get("dest_name", ""),
+                                        "direccion": saved_data_json.get("dest_address", "")
+                                    },
+                                    {"nombre": saved_data_json.get("elab_nombre", "")},
+                                    saved_data_json.get("empaques_info", "Ninguno especificado"),
+                                    consecutivo
+                                )
+                                st.download_button(
+                                    label=f"📄 Descargar PDF Oficial (No.{str(consecutivo).zfill(8)})",
+                                    data=pdf_historial,
+                                    file_name=f"Relacion_Envio_No_{str(consecutivo).zfill(8)}.pdf",
+                                    mime="application/pdf",
+                                    key=f"dl_historial_{registro.get('id', consecutivo)}"
+                                )
+                            except Exception as error_pdf:
+                                registrar_log(f"Error generando PDF histórico: {error_pdf}", "WARNING")
+                                st.caption("ℹ️ No fue posible reconstruir el PDF de este registro.")
+                        else:
+                            st.caption("ℹ️ Este registro anterior no tiene el detalle necesario para descargar el PDF.")
             except Exception as e:
                 registrar_log(f"Error consultando historial por documento: {e}", "ERROR")
                 st.error(f"❌ Error al consultar la base de datos: {e}")
