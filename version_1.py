@@ -792,7 +792,7 @@ def generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info
     return output.getvalue()
 
 
-def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None, consecutivo_num=None):
+def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=None, dest_info=None, elaborado_info=None, empaques_info=None, consecutivo_num=None, es_local=False):
     if driver_info is None: driver_info = {}
     if dest_info is None: dest_info = {}
     if elaborado_info is None: elaborado_info = {}
@@ -1006,8 +1006,9 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('TOPPADDING', (0,0), (-1,-1), 2), ('BOTTOMPADDING', (0,0), (-1,-1), 2),
     ]))
-    elements.append(t_log)
-    elements.append(Spacer(1, 4))
+    if not es_local:
+        elements.append(t_log)
+        elements.append(Spacer(1, 2))
 
     drv_data = [
         [Paragraph("<b>Datos del Conductor y Vehiculo</b>", bold_style), "", "", "", "", ""],
@@ -1024,7 +1025,16 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
             Paragraph("<b>Celular:</b>", normal_style), Paragraph(driver_info.get("celular") or "_______________________", normal_style), "", "", "", ""
         ]
     ]
-    t_drv = Table(drv_data, colWidths=[65, 170, 50, 95, 50, 140])
+    if es_local:
+        drv_data = [
+            [Paragraph("<b>Datos del Conductor y Vehículo</b>", bold_style), ""],
+            [Paragraph("<b>Nombre:</b>", normal_style), Paragraph(driver_info.get("nombre") or "_______________________", normal_style)],
+            [Paragraph("<b>Cédula No.:</b>", normal_style), Paragraph(driver_info.get("cedula") or "_______________________", normal_style)],
+            [Paragraph("<b>Placa:</b>", normal_style), Paragraph(driver_info.get("placa") or "______", normal_style)]
+        ]
+        t_drv = Table(drv_data, colWidths=[120, 462])
+    else:
+        t_drv = Table(drv_data, colWidths=[65, 170, 50, 95, 50, 140])
     t_drv.setStyle(TableStyle([
         ('GRID', (0,0), (-1,-1), 1, colors.black),
         ('SPAN', (0,0), (-1,0)),
@@ -1563,7 +1573,7 @@ def render_procesamiento_despacho(lista_fuentes, tab_key, mostrar_exportacion=Tr
 
                     consecutivo_num = st.session_state.get(f"consecutivo_num_{tab_key}")
                     excel_bytes = generar_excel_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info, consecutivo_num)
-                    pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info, consecutivo_num)
+                    pdf_bytes = generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info, dest_info, elaborado_info, empaques_info, consecutivo_num, es_local=is_local)
 
                     with st.expander("👁️ Previsualizar Documento Generado (PDF)", expanded=False):
                         base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
@@ -1807,7 +1817,8 @@ with tab_consulta:
                                     },
                                     {"nombre": saved_data_json.get("elab_nombre", "")},
                                     saved_data_json.get("empaques_info", "Ninguno especificado"),
-                                    consecutivo
+                                    consecutivo,
+                                    es_local=not bool(saved_data_json.get("cond_empresa"))
                                 )
                                 st.download_button(
                                     label=f"📄 Descargar PDF Oficial (No.{str(consecutivo).zfill(8)})",
