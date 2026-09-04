@@ -1035,15 +1035,19 @@ def generar_pdf_bytes(df_resumen, total_docs, total_kg, total_ton, driver_info=N
         t_drv = Table(drv_data, colWidths=[120, 462])
     else:
         t_drv = Table(drv_data, colWidths=[65, 170, 50, 95, 50, 140])
-    t_drv.setStyle(TableStyle([
+    estilos_conductor = [
         ('GRID', (0,0), (-1,-1), 1, colors.black),
         ('SPAN', (0,0), (-1,0)),
-        ('SPAN', (3,2), (5,2)),
-        ('SPAN', (1,3), (5,3)),
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#BFBFBF')),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('TOPPADDING', (0,0), (-1,-1), 2), ('BOTTOMPADDING', (0,0), (-1,-1), 2),
-    ]))
+    ]
+    if not es_local:
+        estilos_conductor.extend([
+            ('SPAN', (3,2), (5,2)),
+            ('SPAN', (1,3), (5,3)),
+        ])
+    t_drv.setStyle(TableStyle(estilos_conductor))
     elements.append(t_drv)
     elements.append(Spacer(1, 4))
 
